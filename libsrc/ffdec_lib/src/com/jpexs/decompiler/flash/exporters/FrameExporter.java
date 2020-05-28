@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters;
 
 import com.jpacker.JPacker;
@@ -378,6 +379,7 @@ public class FrameExporter {
         }
 
         final Color fbackgroundColor = backgroundColor;
+        final boolean fusesTransparency = settings.mode == FrameExportMode.PNG || settings.mode == FrameExportMode.GIF;
         final Iterator<BufferedImage> frameImages = new Iterator<BufferedImage>() {
             private int pos = 0;
 
@@ -405,7 +407,7 @@ public class FrameExporter {
                 }
 
                 int fframe = fframes.get(pos++);
-                BufferedImage result = SWF.frameToImageGet(tim, fframe, fframe, null, 0, tim.displayRect, new Matrix(), null, fbackgroundColor, settings.zoom).getBufferedImage();
+                BufferedImage result = SWF.frameToImageGet(tim, fframe, fframe, null, 0, tim.displayRect, new Matrix(), null, fusesTransparency ? null : fbackgroundColor, settings.zoom).getBufferedImage();
 
                 if (evl != null) {
                     evl.handleExportedEvent("frame", pos, fframes.size(), tagName);

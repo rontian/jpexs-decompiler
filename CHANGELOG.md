@@ -1,6 +1,24 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## [11.3.0] - 2020-04-25
+### Added
+- Possibility to open SWF files using open on Mac
+- Updated turkish translation
+
+### Fixed
+- #1500 Maximum SWF version constant increased, which is used by the memory search and also in the header editor
+- #1457 AS3 switch without lookupswitch ins detection
+- #1457 pushing on stack before exit item (return/throw)
+- #1503 NullPointer Exception on commandline FLA export
+- AS3 direct editation - invalid generation of lookupswitch
+- AS3 direct editation - fix access to protected members with super
+- #1529 commandline selection of tag ids now applies to sprites and buttons
+
+### Changed
+- #1378 Transparent background on PNG/GIF sprite export
+- SWF background on shape BMP export
+
 ## [11.2.0] - 2018-09-08
 ### Added
 - Warning panel on scripts containing §§ instructions (Tip for Settings/Automatic deobfuscation)

@@ -425,12 +425,12 @@ public class CommandLineArgumentParser {
 
         if (filter == null || filter.equals("dumpas2")) {
             out.println(" " + (cnt++) + ") -dumpAS2 <infile>");
-            out.println("  ...dumps list of AS1/2 sctipts to console");
+            out.println("  ...dumps list of AS1/2 scripts to console");
         }
 
         if (filter == null || filter.equals("dumpas3")) {
             out.println(" " + (cnt++) + ") -dumpAS3 <infile>");
-            out.println("  ...dumps list of AS3 sctipts to console");
+            out.println("  ...dumps list of AS3 scripts to console");
         }
 
         if (filter == null || filter.equals("compress")) {
@@ -2239,7 +2239,7 @@ public class CommandLineArgumentParser {
 
                 if (exportAll || exportFormats.contains("shape")) {
                     System.out.println("Exporting shapes...");
-                    new ShapeExporter().exportShapes(handler, outDir + (multipleExportTypes ? File.separator + ShapeExportSettings.EXPORT_FOLDER_NAME : ""), new ReadOnlyTagList(extags), new ShapeExportSettings(enumFromStr(formats.get("shape"), ShapeExportMode.class), zoom), evl);
+                    new ShapeExporter().exportShapes(handler, outDir + (multipleExportTypes ? File.separator + ShapeExportSettings.EXPORT_FOLDER_NAME : ""), swf, new ReadOnlyTagList(extags), new ShapeExportSettings(enumFromStr(formats.get("shape"), ShapeExportMode.class), zoom), evl);
                 }
 
                 if (exportAll || exportFormats.contains("morphshape")) {
@@ -2293,9 +2293,9 @@ public class CommandLineArgumentParser {
                 if (exportAll || exportFormats.contains("sprite")) {
                     System.out.println("Exporting sprite...");
                     SpriteExportSettings ses = new SpriteExportSettings(enumFromStr(formats.get("sprite"), SpriteExportMode.class), zoom);
-                    for (CharacterTag c : swf.getCharacters().values()) {
-                        if (c instanceof DefineSpriteTag) {
-                            frameExporter.exportSpriteFrames(handler, outDir + (multipleExportTypes ? File.separator + SpriteExportSettings.EXPORT_FOLDER_NAME : ""), swf, c.getCharacterId(), null, ses, evl);
+                    for (Tag t : extags) {
+                        if (t instanceof DefineSpriteTag) {
+                            frameExporter.exportSpriteFrames(handler, outDir + (multipleExportTypes ? File.separator + SpriteExportSettings.EXPORT_FOLDER_NAME : ""), swf, ((DefineSpriteTag) t).getCharacterId(), null, ses, evl);
                         }
                     }
                 }
@@ -2303,9 +2303,9 @@ public class CommandLineArgumentParser {
                 if (exportAll || exportFormats.contains("button")) {
                     System.out.println("Exporting buttons...");
                     ButtonExportSettings bes = new ButtonExportSettings(enumFromStr(formats.get("button"), ButtonExportMode.class), zoom);
-                    for (CharacterTag c : swf.getCharacters().values()) {
-                        if (c instanceof ButtonTag) {
-                            frameExporter.exportButtonFrames(handler, outDir + (multipleExportTypes ? File.separator + ButtonExportSettings.EXPORT_FOLDER_NAME : ""), swf, c.getCharacterId(), null, bes, evl);
+                    for (Tag t : extags) {
+                        if (t instanceof ButtonTag) {
+                            frameExporter.exportButtonFrames(handler, outDir + (multipleExportTypes ? File.separator + ButtonExportSettings.EXPORT_FOLDER_NAME : ""), swf, ((ButtonTag) t).getCharacterId(), null, bes, evl);
                         }
                     }
                 }
