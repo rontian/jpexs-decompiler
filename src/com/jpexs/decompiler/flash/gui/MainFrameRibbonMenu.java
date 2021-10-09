@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,9 +16,12 @@
  */
 package com.jpexs.decompiler.flash.gui;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.search.ScriptSearchResult;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
@@ -27,10 +30,13 @@ import java.util.List;
 import java.util.Map;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import org.pushingpixels.flamingo.api.common.AbstractCommandButton;
 import org.pushingpixels.flamingo.api.common.CommandButtonDisplayState;
 import org.pushingpixels.flamingo.api.common.CommandToggleButtonGroup;
@@ -152,6 +158,82 @@ public class MainFrameRibbonMenu extends MainFrameMenu {
         return resizePolicies;
     }
 
+    @SuppressWarnings("unchecked")
+    @Override
+    protected void loadRecentSearches(ActionEvent evt) {
+        if (evt.getSource() instanceof JPanel) {
+            JPanel targetPanel = (JPanel) evt.getSource();
+            targetPanel.removeAll();
+            JCommandButtonPanel searchHistoryPanel = new JCommandButtonPanel(CommandButtonDisplayState.MEDIUM);
+            String groupName = translate("menu.recentSearches");
+            searchHistoryPanel.addButtonGroup(groupName);
+
+            SWF swf = Main.getMainFrame().getPanel().getCurrentSwf();
+            List<Integer> indices = Main.searchResultsStorage.getIndicesForSwf(swf);
+
+            int height = 0;
+            height = searchHistoryPanel.getInsets().top + searchHistoryPanel.getInsets().bottom + 6/*groupInset top*/ + new JLabel(groupName).getPreferredSize().height + 4 /*layoutGap*/;
+            height += 6/*groupInset bottom*/;
+
+            int j = 0;
+            for (int i = indices.size() - 1; i >= 0; i--) {
+
+                final int fi = indices.get(i);
+                String searched = Main.searchResultsStorage.getSearchedValueAt(fi);
+                RecentSearchesButton historyButton = new RecentSearchesButton(j + "    " + searched, null);
+                historyButton.search = searched;
+
+                historyButton.addActionListener((ActionEvent ae) -> {
+
+                    List<SearchListener<ScriptSearchResult>> listeners = new ArrayList<>();
+                    listeners.add(Main.getMainFrame().getPanel().getABCPanel());
+                    listeners.add(Main.getMainFrame().getPanel().getActionPanel());
+                    SearchResultsDialog sr;
+                    if (swf.isAS3()) {
+                        sr = new SearchResultsDialog<>(Main.getDefaultDialogsOwner(), searched, Main.searchResultsStorage.isIgnoreCaseAt(fi), Main.searchResultsStorage.isRegExpAt(fi), listeners);
+                    } else {
+                        sr = new SearchResultsDialog<>(Main.getDefaultDialogsOwner(), searched, Main.searchResultsStorage.isIgnoreCaseAt(fi), Main.searchResultsStorage.isRegExpAt(fi), listeners);
+                    }
+                    sr.setResults(Main.searchResultsStorage.getSearchResultsAt(Main.getMainFrame().getPanel().getAllSwfs(), fi));
+                    sr.setVisible(true);
+                    Main.getMainFrame().getPanel().searchResultsDialogs.add(sr);
+                });
+                j++;
+                historyButton.setHorizontalAlignment(SwingUtilities.LEFT);
+                searchHistoryPanel.addButtonToLastGroup(historyButton);
+                height += historyButton.getHeight() + 4 /*layoutGap*/;
+            }
+
+            if (indices.isEmpty()) {
+                JCommandButton emptyLabel = new JCommandButton(translate("menu.recentSearches.empty"));
+                emptyLabel.setHorizontalAlignment(SwingUtilities.LEFT);
+                emptyLabel.setEnabled(false);
+                searchHistoryPanel.addButtonToLastGroup(emptyLabel);
+                height += emptyLabel.getHeight() + 4 /*layoutGap*/;
+            } else {
+                JCommandButton clearButton = new JCommandButton(translate("menu.recentSearches.clear"));
+                clearButton.setHorizontalAlignment(SwingUtilities.LEFT);
+                clearButton.addActionListener(this::clearRecentSearchesForCurrentSwfActionPerformed);
+                searchHistoryPanel.addButtonToLastGroup(clearButton);
+                height += clearButton.getHeight() + 4 /*layoutGap*/;
+            }
+
+            searchHistoryPanel.setMaxButtonColumns(1);
+            targetPanel.setLayout(new BorderLayout());
+            JScrollPane scrollPane = new FasterScrollPane(searchHistoryPanel);
+            height += scrollPane.getInsets().top + scrollPane.getInsets().bottom;
+            int maxHeight = Main.getMainFrame().getPanel().getHeight();
+            boolean needsScrollBar = false;
+            if (height > maxHeight) {
+                height = maxHeight;
+                needsScrollBar = true;
+            }
+            int scrollBarSize = ((Integer) UIManager.get("ScrollBar.width")).intValue();
+            scrollPane.setPreferredSize(new Dimension(Math.max(new JLabel(groupName).getPreferredSize().width + 2 * 6 /*groupInset*/ + scrollPane.getInsets().left + scrollPane.getInsets().right + (needsScrollBar ? scrollBarSize : 0), scrollPane.getPreferredSize().width), height));
+            targetPanel.add(scrollPane, BorderLayout.CENTER);
+        }
+    }
+
     @Override
     protected void loadRecent(ActionEvent evt) {
         if (evt.getSource() instanceof JPanel) {
@@ -169,7 +251,7 @@ public class MainFrameRibbonMenu extends MainFrameMenu {
                 historyButton.addActionListener((ActionEvent ae) -> {
                     RecentFilesButton source = (RecentFilesButton) ae.getSource();
                     if (Main.openFile(source.fileName, null) == OpenFileResult.NOT_FOUND) {
-                        if (View.showConfirmDialog(null, translate("message.confirm.recentFileNotFound"), translate("message.confirm"), JOptionPane.YES_NO_OPTION) == JOptionPane.YES_NO_OPTION) {
+                        if (ViewMessages.showConfirmDialog(Main.getDefaultMessagesComponent(), translate("message.confirm.recentFileNotFound"), translate("message.confirm"), JOptionPane.YES_NO_OPTION) == JOptionPane.YES_NO_OPTION) {
                             Configuration.removeRecentFile(source.fileName);
                         }
                     }

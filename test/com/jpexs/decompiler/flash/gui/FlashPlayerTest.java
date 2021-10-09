@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -169,7 +169,7 @@ public class FlashPlayerTest {
                         System.out.println("Flash result (" + task.description + "): " + task.flashResult);
                         System.out.println("FFDec execte result: " + task.ffdecResult);
                         if (!task.ffdecResult.equals(task.flashResult)) {
-                            System.out.println(code.toASMSource(testAbc.constants));
+                            System.out.println(code.toASMSource(testAbc, testAbc.constants));
                         }
 
                         assertEquals(task.ffdecResult, task.flashResult);

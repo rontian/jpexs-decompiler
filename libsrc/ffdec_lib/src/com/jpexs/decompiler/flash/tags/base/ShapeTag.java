@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,14 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.SVGExporter;
 import com.jpexs.decompiler.flash.exporters.shape.BitmapExporter;
@@ -27,9 +29,12 @@ import com.jpexs.decompiler.flash.exporters.shape.SVGShapeExporter;
 import com.jpexs.decompiler.flash.helpers.LazyObject;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.ColorTransform;
+import com.jpexs.decompiler.flash.types.LINESTYLE;
 import com.jpexs.decompiler.flash.types.RECT;
 import com.jpexs.decompiler.flash.types.SHAPEWITHSTYLE;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
+import com.jpexs.decompiler.flash.types.shaperecords.SHAPERECORD;
+import com.jpexs.decompiler.flash.types.shaperecords.StyleChangeRecord;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.SerializableImage;
 import java.awt.Color;
@@ -124,6 +129,39 @@ public abstract class ShapeTag extends DrawableTag implements LazyObject {
     }
 
     @Override
+    public RECT getRectWithStrokes() {
+
+
+        int maxWidth = 0;
+        for (LINESTYLE ls : getShapes().lineStyles.lineStyles) {
+            if (ls.width > maxWidth) {
+                maxWidth = ls.width;
+            }
+        }
+        for (SHAPERECORD sr : getShapes().shapeRecords) {
+            if (sr instanceof StyleChangeRecord) {
+                StyleChangeRecord scr = (StyleChangeRecord) sr;
+                if (scr.stateNewStyles) {
+                    for (LINESTYLE ls : scr.lineStyles.lineStyles) {
+                        if (ls.width > maxWidth) {
+                            maxWidth = ls.width;
+                        }
+                    }
+                }
+            }
+        }
+
+        RECT r = new RECT(getRect());
+        r.Xmin -= maxWidth;
+        r.Ymin -= maxWidth;
+        r.Xmax += maxWidth;
+        r.Ymax += maxWidth;
+
+        return r;
+    }
+
+
+    @Override
     public int getUsedParameters() {
         return 0;
     }
@@ -134,8 +172,8 @@ public abstract class ShapeTag extends DrawableTag implements LazyObject {
     }
 
     @Override
-    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, ColorTransform colorTransform) {
-        BitmapExporter.export(swf, getShapes(), null, image, transformation, strokeTransformation, colorTransform);
+    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, boolean scaleStrokes, int drawMode) {
+        BitmapExporter.export(swf, getShapes(), null, image, transformation, strokeTransformation, colorTransform, scaleStrokes);
         if (Configuration._debugMode.get()) { // show control points
             List<GeneralPath> paths = PathExporter.export(swf, getShapes());
             double[] coords = new double[6];

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -94,7 +94,7 @@ public class FirstInstance {
                                             View.execInEventDispatch(new Runnable() {
                                                 @Override
                                                 public void run() {
-                                                    Window wnd = Main.getMainFrame().getWindow();
+                                                    Window wnd = Main.getDefaultDialogsOwner();
                                                     wnd.setAlwaysOnTop(true);
                                                     wnd.toFront();
                                                     wnd.requestFocus();

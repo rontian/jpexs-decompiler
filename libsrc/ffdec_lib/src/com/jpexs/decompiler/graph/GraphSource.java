@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,7 +18,6 @@ package com.jpexs.decompiler.graph;
 
 import com.jpexs.decompiler.flash.BaseLocalData;
 import com.jpexs.decompiler.flash.action.Action;
-import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -113,6 +112,8 @@ public abstract class GraphSource implements Serializable {
     }
 
     public abstract int adr2pos(long adr);
+
+    public abstract int adr2pos(long adr, boolean nearest);
 
     public abstract long pos2adr(int pos);
 

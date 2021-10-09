@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppStrings;
 import com.jpexs.decompiler.flash.gui.MainPanel;
 import com.jpexs.decompiler.flash.gui.View;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -41,9 +42,13 @@ import java.awt.event.MouseMotionAdapter;
 import java.awt.font.TextAttribute;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.JButton;
@@ -118,6 +123,8 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
     private static Font notUnderlinedFont = null;
 
     private final int zeroCharacterWidth;
+
+    private final double MAX_ZOOM = 1.0e6; //in larger zooms, flash viewer stops working
 
     static {
         Font font = new JLabel().getFont();
@@ -328,16 +335,25 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
         }
 
         View.execInEventDispatchLater(() -> {
-            updateZoom();
+            //updateZoom();
             int totalFrames = display.getTotalFrames();
             int currentFrame = display.getCurrentFrame();
-            if (currentFrame >= totalFrames) {
-                currentFrame = totalFrames - 1;
+            if (currentFrame > totalFrames) {
+                currentFrame = totalFrames;
             }
             float frameRate = display.getFrameRate();
             Zoom zoom = display.getZoom();
             zoomFitButton.setVisible(zoom != null);
             percentLabel.setVisible(zoom != null);
+            Zoom currentZoom = new Zoom();
+            currentZoom.fit = zoomToFit;
+            currentZoom.value = realZoom;
+            if (zoom != null && !Objects.equals(zoom, currentZoom)) {
+                zoomToFit = zoom.fit;
+                realZoom = zoom.value;
+                updateZoomDisplay();
+            }
+
             zoomPanel.setVisible(display.zoomAvailable());
             boolean screenAvailable = display.screenAvailable();
             snapshotButton.setVisible(screenAvailable);
@@ -357,13 +373,13 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
             } else {
                 progress.setMaximum(totalFrames - 1);
                 progress.setMinimum(0);
-                progress.setValue(currentFrame);
+                progress.setValue(currentFrame - 1);
                 progress.setIndeterminate(false);
             }
-            frameLabel.setText(Integer.toString(currentFrame + 1));
+            frameLabel.setText(Integer.toString(currentFrame));
             totalFrameLabel.setText(Integer.toString(totalFrames));
             if (frameRate != 0) {
-                timeLabel.setText("(" + formatMs((int) (currentFrame * 1000.0 / frameRate)) + ")");
+                timeLabel.setText("(" + formatMs((int) ((currentFrame - 1) * 1000.0 / frameRate)) + ")");
                 totalTimeLabel.setText("(" + formatMs((int) (totalFrames * 1000.0 / frameRate)) + ")");
             }
             if (totalFrames <= 1 && playbackControls.isVisible()) {
@@ -390,14 +406,13 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
         if (lg < 0) {
             lg = 0;
         }
-        BigDecimal bd = new BigDecimal(String.valueOf(realZoom)).setScale(lg, BigDecimal.ROUND_HALF_UP);
+        BigDecimal bd = new BigDecimal(String.valueOf(realZoom)).setScale(lg, RoundingMode.HALF_UP);
         return bd.doubleValue();
     }
 
-    private void updateZoom() {
+    private void updateZoomDisplay() {
         double pctzoom = roundZoom(getRealZoom() * 100, 3);
         String r = Double.toString(pctzoom);
-        double zoom = pctzoom / 100.0;
         if (r.endsWith(".0")) {
             r = r.substring(0, r.length() - 2);
         }
@@ -410,6 +425,12 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
             percentLabel.setText(r);
         }
 
+    }
+
+    private void updateZoom() {
+        updateZoomDisplay();
+        double pctzoom = roundZoom(getRealZoom() * 100, 3);
+        double zoom = pctzoom / 100.0;
         Zoom zoomObj = new Zoom();
         zoomObj.value = zoom;
         zoomObj.fit = zoomToFit;
@@ -458,7 +479,7 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
 
             }
         });
-        if (View.showConfirmDialog(this, gotoPanel, AppStrings.translate("preview.gotoframe.dialog.title"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION) {
+        if (ViewMessages.showConfirmDialog(this, gotoPanel, AppStrings.translate("preview.gotoframe.dialog.title"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION) {
             int frame = -1;
             try {
                 frame = Integer.parseInt(frameField.getText());
@@ -466,7 +487,7 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
                 //handled as -1
             }
             if (frame <= 0 || frame > display.getTotalFrames()) {
-                View.showMessageDialog(this, AppStrings.translate("preview.gotoframe.dialog.frame.error").replace("%min%", "1").replace("%max%", "" + display.getTotalFrames()), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                ViewMessages.showMessageDialog(this, AppStrings.translate("preview.gotoframe.dialog.frame.error").replace("%min%", "1").replace("%max%", "" + display.getTotalFrames()), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
                 return;
             }
             display.gotoFrame(frame - 1);
@@ -494,7 +515,11 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
     }
 
     private void zoomInButtonActionPerformed(ActionEvent evt) {
-        realZoom = getRealZoom() * ZOOM_MULTIPLIER;
+        double currentRealZoom = getRealZoom();
+        if (currentRealZoom >= MAX_ZOOM) {
+            return;
+        }
+        realZoom = currentRealZoom * ZOOM_MULTIPLIER;
         zoomToFit = false;
         updateZoom();
     }
@@ -584,6 +609,18 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
         if (img == null) {
             return;
         }
+
+        //If the image contains transparency,
+        //exception stack trace is printed to stderr in java internals
+        //see https://stackoverflow.com/questions/59140881/error-copying-an-image-object-to-the-clipboard
+        //we handle this by ignoring System.err
+        final PrintStream originalErr = System.err;
+        System.setErr(new PrintStream(new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+
+            }
+        }));
         TransferableImage trans = new TransferableImage(img);
         Clipboard c = Toolkit.getDefaultToolkit().getSystemClipboard();
         c.setContents(trans, new ClipboardOwner() {
@@ -591,5 +628,6 @@ public class PlayerControls extends JPanel implements MediaDisplayListener {
             public void lostOwnership(Clipboard clipboard, Transferable contents) {
             }
         });
+        System.setErr(originalErr); //Reset system.err back to normal state
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -224,7 +224,7 @@ public class DoInitActionTag extends Tag implements CharacterIdTag, ASMSource {
     public String getName() {
         String expName = swf == null ? "" : swf.getExportName(spriteId);
         if (expName == null || expName.isEmpty()) {
-            return super.getName();
+            return super.getName() + " (" + spriteId + ")";
         }
         String[] pathParts = expName.contains(".") ? expName.split("\\.") : new String[]{expName};
         return pathParts[pathParts.length - 1];

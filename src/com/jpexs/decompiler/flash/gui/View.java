@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,9 +29,11 @@ import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
+import java.awt.Insets;
 import java.awt.Rectangle;
 import java.awt.SystemColor;
 import java.awt.TexturePaint;
+import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -108,7 +110,7 @@ import org.pushingpixels.substance.internal.utils.SubstanceColorSchemeUtilities;
 public class View {
 
     public static Color getDefaultBackgroundColor() {
-        if (Configuration.useRibbonInterface.get()) {
+        if (Configuration.useRibbonInterface.get() && SubstanceLookAndFeel.getCurrentSkin() != null) {
             return SubstanceLookAndFeel.getCurrentSkin().getColorScheme(DecorationAreaType.GENERAL, ColorSchemeAssociationKind.FILL, ComponentState.ENABLED).getBackgroundFillColor();
         } else {
             return SystemColor.control;
@@ -356,12 +358,20 @@ public class View {
 
             screenX = allDevices[screen].getDefaultConfiguration().getBounds().width;
             screenY = allDevices[screen].getDefaultConfiguration().getBounds().height;
+
+            Insets bounds = Toolkit.getDefaultToolkit().getScreenInsets(allDevices[screen].getDefaultConfiguration());
+            screenX = screenX - bounds.right;
+            screenY = screenY - bounds.bottom;
         } else {
             topLeftX = allDevices[0].getDefaultConfiguration().getBounds().x;
             topLeftY = allDevices[0].getDefaultConfiguration().getBounds().y;
 
             screenX = allDevices[0].getDefaultConfiguration().getBounds().width;
             screenY = allDevices[0].getDefaultConfiguration().getBounds().height;
+
+            Insets bounds = Toolkit.getDefaultToolkit().getScreenInsets(allDevices[0].getDefaultConfiguration());
+            screenX = screenX - bounds.right;
+            screenY = screenY - bounds.bottom;
         }
 
         windowPosX = ((screenX - f.getWidth()) / 2) + topLeftX;
@@ -463,103 +473,6 @@ public class View {
         } else {
             SwingUtilities.invokeLater(r);
         }
-    }
-
-    public static int showOptionDialog(final Component parentComponent, final Object message, final String title, final int optionType, final int messageType, final Icon icon, final Object[] options, final Object initialValue) {
-        final int[] ret = new int[1];
-        execInEventDispatch(() -> {
-            ret[0] = JOptionPane.showOptionDialog(parentComponent, message, title, optionType, messageType, icon, options, initialValue);
-        });
-        return ret[0];
-    }
-
-    public static int showConfirmDialog(Component parentComponent, Object message, String title, int optionType) {
-        return showConfirmDialog(parentComponent, message, title, optionType, JOptionPane.PLAIN_MESSAGE);
-    }
-
-    public static int showConfirmDialog(final Component parentComponent, final Object message, final String title, final int optionType, final int messageTyp) {
-        final int[] ret = new int[1];
-        execInEventDispatch(() -> {
-            ret[0] = JOptionPane.showConfirmDialog(parentComponent, message, title, optionType, messageTyp);
-        });
-        return ret[0];
-    }
-
-    public static int showConfirmDialog(Component parentComponent, String message, String title, int optionType, ConfigurationItem<Boolean> showAgainConfig, int defaultOption) {
-        return showConfirmDialog(parentComponent, message, title, optionType, JOptionPane.PLAIN_MESSAGE, showAgainConfig, defaultOption);
-    }
-
-    public static int showConfirmDialog(final Component parentComponent, String message, final String title, final int optionType, final int messageType, ConfigurationItem<Boolean> showAgainConfig, int defaultOption) {
-
-        JCheckBox donotShowAgainCheckBox = null;
-        JPanel warPanel = null;
-        if (showAgainConfig != null) {
-            if (!showAgainConfig.get()) {
-                return defaultOption;
-            }
-
-            JLabel warLabel = new JLabel("<html>" + message.replace("\r\n", "<br>") + "</html>");
-            warPanel = new JPanel(new BorderLayout());
-            warPanel.add(warLabel, BorderLayout.CENTER);
-            donotShowAgainCheckBox = new JCheckBox(AppStrings.translate("message.confirm.donotshowagain"));
-            warPanel.add(donotShowAgainCheckBox, BorderLayout.SOUTH);
-        }
-
-        final int[] ret = new int[1];
-        final Object messageObj = warPanel == null ? message : warPanel;
-        execInEventDispatch(() -> {
-            ret[0] = JOptionPane.showConfirmDialog(parentComponent, messageObj, title, optionType, messageType);
-        });
-
-        if (donotShowAgainCheckBox != null) {
-            showAgainConfig.set(!donotShowAgainCheckBox.isSelected());
-        }
-
-        return ret[0];
-    }
-
-    public static void showMessageDialog(final Component parentComponent, final String message, final String title, final int messageType) {
-        showMessageDialog(parentComponent, message, title, messageType, null);
-    }
-
-    public static void showMessageDialog(final Component parentComponent, final String message, final String title, final int messageType, ConfigurationItem<Boolean> showAgainConfig) {
-
-        execInEventDispatch(() -> {
-            Object msg = message;
-            JCheckBox donotShowAgainCheckBox = null;
-            if (showAgainConfig != null) {
-                if (!showAgainConfig.get()) {
-                    return;
-                }
-
-                JLabel warLabel = new JLabel("<html>" + message.replace("\r\n", "<br>") + "</html>");
-                final JPanel warPanel = new JPanel(new BorderLayout());
-                warPanel.add(warLabel, BorderLayout.CENTER);
-                donotShowAgainCheckBox = new JCheckBox(AppStrings.translate("message.confirm.donotshowagain"));
-                warPanel.add(donotShowAgainCheckBox, BorderLayout.SOUTH);
-                msg = warPanel;
-            }
-            final Object fmsg = msg;
-
-            JOptionPane.showMessageDialog(parentComponent, fmsg, title, messageType);
-            if (donotShowAgainCheckBox != null) {
-                showAgainConfig.set(!donotShowAgainCheckBox.isSelected());
-            }
-        });
-    }
-
-    public static void showMessageDialog(final Component parentComponent, final Object message) {
-        execInEventDispatch(() -> {
-            JOptionPane.showMessageDialog(parentComponent, message);
-        });
-    }
-
-    public static String showInputDialog(final Object message, final Object initialSelection) {
-        final String[] ret = new String[1];
-        execInEventDispatch(() -> {
-            ret[0] = JOptionPane.showInputDialog(message, initialSelection);
-        });
-        return ret[0];
     }
 
     public static SubstanceColorScheme getColorScheme() {

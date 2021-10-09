@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,6 +21,7 @@ import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.model.ActionItem;
 import com.jpexs.decompiler.flash.action.model.FunctionActionItem;
 import com.jpexs.decompiler.flash.action.model.GetMemberActionItem;
+import com.jpexs.decompiler.flash.action.model.GetVariableActionItem;
 import com.jpexs.decompiler.flash.action.model.SetMemberActionItem;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.parser.script.VariableActionItem;
@@ -30,6 +31,7 @@ import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.ContinueItem;
 import com.jpexs.decompiler.graph.model.LocalData;
@@ -63,6 +65,12 @@ public class ClassActionItem extends ActionItem implements Block {
         //? is this needed for traits ?
         return ret;
     }
+
+    @Override
+    public void visitNoBlock(GraphTargetVisitorInterface visitor) {
+
+    }
+
 
     public ClassActionItem(GraphTargetItem className, GraphTargetItem extendsOp, List<GraphTargetItem> implementsOp, List<MyEntry<GraphTargetItem, GraphTargetItem>> traits, List<Boolean> traitsStatic) {
         super(null, null, NOPRECEDENCE);
@@ -140,6 +148,14 @@ public class ClassActionItem extends ActionItem implements Block {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
+        GraphTargetItem clsName = className;
+        while (clsName instanceof GetMemberActionItem) {
+            ((GetMemberActionItem) clsName).printObfuscatedMemberName = true;
+            clsName = ((GetMemberActionItem) clsName).object;
+        }
+        if (clsName instanceof GetVariableActionItem) {
+            ((GetVariableActionItem) clsName).printObfuscatedName = true;
+        }
         writer.startClass(className.toStringNoQuotes(localData));
         writer.append("class ");
         className.toStringNoQuotes(writer, localData);

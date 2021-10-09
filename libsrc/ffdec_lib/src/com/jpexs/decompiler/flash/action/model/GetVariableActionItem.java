@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,15 +19,17 @@ package com.jpexs.decompiler.flash.action.model;
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.swf4.ActionGetVariable;
+import com.jpexs.decompiler.flash.helpers.CodeFormatting;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.flash.helpers.StringBuilderTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -48,16 +50,16 @@ public class GetVariableActionItem extends ActionItem {
 
     private boolean computedVariableComputed = false;
 
+    public boolean printObfuscatedName = false;
+
     @Override
     public String toString() {
         return name.toString();
     }
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.add(name);
-        return ret;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(name);
     }
 
     public GetVariableActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
@@ -67,7 +69,17 @@ public class GetVariableActionItem extends ActionItem {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        if ((name instanceof DirectValueActionItem) && (((DirectValueActionItem) name).isString()) && (IdentifiersDeobfuscation.isValidNameWithDot(false, ((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super")
+        if (name instanceof DirectValueActionItem && printObfuscatedName) {
+            HighlightData srcData = getSrcData();
+            srcData.localName = name.toStringNoQuotes(localData);
+
+            StringBuilder sb = new StringBuilder();
+            StringBuilderTextWriter sbw = new StringBuilderTextWriter(new CodeFormatting(), sb);
+            stripQuotes(name, localData, sbw);
+            writer.append(IdentifiersDeobfuscation.printIdentifier(false, sb.toString()));
+            return writer;
+        }
+        if ((name instanceof DirectValueActionItem) && (((DirectValueActionItem) name).isString()) && (printObfuscatedName || IdentifiersDeobfuscation.isValidNameWithDot(false, ((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super")
                 || IdentifiersDeobfuscation.isValidNameWithSlash(((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super"))) {
             HighlightData srcData = getSrcData();
             srcData.localName = name.toStringNoQuotes(localData);

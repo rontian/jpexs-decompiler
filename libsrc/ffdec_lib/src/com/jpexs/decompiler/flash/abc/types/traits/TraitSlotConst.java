@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.types.traits;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -38,6 +39,7 @@ import com.jpexs.decompiler.graph.model.LocalData;
 import com.jpexs.helpers.Helper;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -120,7 +122,7 @@ public class TraitSlotConst extends Trait implements TraitWithSlot {
                 writer.newLine();
             }
             if (exportMode != ScriptExportMode.AS_METHOD_STUBS) {
-                assignment.value.toString(writer, LocalData.create(abc.constants, new HashMap<>(), fullyQualifiedNames));
+                assignment.value.toString(writer, LocalData.create(abc, new HashMap<>(), fullyQualifiedNames, new HashSet<>()));
             }
             writer.endMethod();
             writer.endTrait();
@@ -160,7 +162,7 @@ public class TraitSlotConst extends Trait implements TraitWithSlot {
         if (convertData.assignedValues.containsKey(this)) {
             GraphTargetItem val = convertData.assignedValues.get(this).value;
             if (val instanceof NewFunctionAVM2Item) {
-                return val.toString(writer, LocalData.create(abc.constants, new HashMap<>(), fullyQualifiedNames));
+                return val.toString(writer, LocalData.create(abc, new HashMap<>(), fullyQualifiedNames, new HashSet<>()));
             }
         }
         getNameStr(writer, abc, fullyQualifiedNames);
@@ -200,11 +202,11 @@ public class TraitSlotConst extends Trait implements TraitWithSlot {
     }
 
     @Override
-    public void getDependencies(String customNs, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) {
+    public void getDependencies(int scriptIndex, int classIndex, boolean isStatic, String customNs, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) throws InterruptedException {
         if (ignorePackage == null) {
             ignorePackage = getPackage(abc);
         }
-        super.getDependencies(customNs, abc, dependencies, uses, ignorePackage, fullyQualifiedNames);
+        super.getDependencies(scriptIndex, classIndex, isStatic, customNs, abc, dependencies, uses, ignorePackage, fullyQualifiedNames);
         DependencyParser.parseDependenciesFromMultiname(customNs, abc, dependencies, uses, abc.constants.getMultiname(type_index), getPackage(abc), fullyQualifiedNames, DependencyType.SIGNATURE);
     }
 
@@ -239,9 +241,11 @@ public class TraitSlotConst extends Trait implements TraitWithSlot {
         writer.appendNoHilight("type ");
         writer.hilightSpecial(abc.constants.multinameToString(type_index), HighlightSpecialType.TRAIT_TYPE_NAME);
         writer.newLine();
-        writer.appendNoHilight("value ");
-        writer.hilightSpecial((new ValueKind(value_index, value_kind).toASMString(abc.constants)), HighlightSpecialType.TRAIT_VALUE);
-        writer.newLine();
+        if (value_kind != ValueKind.CONSTANT_Undefined) {
+            writer.appendNoHilight("value ");
+            writer.hilightSpecial((new ValueKind(value_index, value_kind).toASMString(abc.constants)), HighlightSpecialType.TRAIT_VALUE);
+            writer.newLine();
+        }
         return writer;
     }
 

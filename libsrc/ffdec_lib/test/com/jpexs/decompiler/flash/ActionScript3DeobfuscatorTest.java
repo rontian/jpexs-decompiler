@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -58,12 +59,14 @@ public class ActionScript3DeobfuscatorTest extends ActionScriptTestBase {
         Configuration.autoDeobfuscate.set(true);
         Configuration.decimalAddress.set(false);
         Configuration.decompilationTimeoutSingleMethod.set(Integer.MAX_VALUE);
+        Configuration.padAs3PCodeInstructionName.set(false);
+        Configuration.useOldStyleGetSetLocalsAs3PCode.set(false);
         swf = new SWF(new BufferedInputStream(new FileInputStream("testdata/as3/as3.swf")), false);
     }
 
     private String recompilePCode(String str) throws IOException, AVM2ParseException, InterruptedException {
         str = "code\r\n"
-                + "getlocal_0\r\n"
+                + "getlocal0\r\n"
                 + "pushscope\r\n"
                 + str
                 + "returnvoid\r\n";
@@ -88,9 +91,12 @@ public class ActionScript3DeobfuscatorTest extends ActionScriptTestBase {
         b.setCode(code);
         new AVM2DeobfuscatorJumps().avm2CodeRemoveTraps("test", 0, true, 0, abc, null, 0, b);
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-        code.toASMSource(abc.constants, new MethodInfo(), new MethodBody(abc, new Traits(), new byte[0], new ABCException[0]), ScriptExportMode.PCODE, writer);
+        code.toASMSource(abc, abc.constants, new MethodInfo(), new MethodBody(abc, new Traits(), new byte[0], new ABCException[0]), ScriptExportMode.PCODE, writer);
         String ret = writer.toString();
-        return ret.substring(ret.lastIndexOf("\r\ncode\r\n") + 8, ret.lastIndexOf("end ; code"));
+        ret = ret.replaceAll("\r\n +", "\r\n");
+        String prefix = "\r\ncode\r\n";
+        String suffix = "end ; code";
+        return ret.substring(ret.lastIndexOf(prefix) + prefix.length(), ret.lastIndexOf(suffix));
     }
 
     private String recompile(String str) throws AVM2ParseException, IOException, CompilationException, InterruptedException {
@@ -113,9 +119,9 @@ public class ActionScript3DeobfuscatorTest extends ActionScriptTestBase {
         });
         ActionScript3Parser par = new ActionScript3Parser(abc, new ArrayList<>());
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-        par.addScript(str, true, "Test.as", 0, 0);
+        par.addScript(str, "Test.as", 0, 0);
 
-        abc.script_info.get(0).getPacks(abc, 0, "", new ArrayList<>()).get(0).toSource(writer, abc.script_info.get(0).traits.traits, new ConvertData(), ScriptExportMode.AS, false);
+        abc.script_info.get(0).getPacks(abc, 0, "", new ArrayList<>()).get(0).toSource(writer, abc.script_info.get(0).traits.traits, new ConvertData(), ScriptExportMode.AS, false, false);
         return writer.toString();
     }
 
@@ -234,14 +240,16 @@ public class ActionScript3DeobfuscatorTest extends ActionScriptTestBase {
                 + "a:jump c\r\n"
                 + "c:pushbyte 4\r\n"
                 + "b:pushbyte 3\r\n");
-        Assert.assertEquals(res, "getlocal_0\r\n"
+        Assert.assertEquals(res, "getlocal0\r\n"
                 + "pushscope\r\n"
                 + "pushbyte 3\r\n"
                 + "pushbyte 4\r\n"
                 + "ifeq ofs000e\r\n"
                 + "jump ofs0010\r\n"
-                + "ofs000e:pushbyte 4\r\n"
-                + "ofs0010:pushbyte 3\r\n"
+                + "ofs000e:\r\n"
+                + "pushbyte 4\r\n"
+                + "ofs0010:\r\n"
+                + "pushbyte 3\r\n"
                 + "returnvoid\r\n");
     }
 

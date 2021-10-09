@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,11 +12,17 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.types.traits;
 
 import com.jpexs.decompiler.flash.abc.ABC;
+import com.jpexs.decompiler.flash.abc.avm2.model.FindPropertyAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.FullMultinameAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.GetLexAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.GetPropertyAVM2Item;
 import com.jpexs.decompiler.flash.abc.types.ConvertData;
+import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.exporters.script.Dependency;
@@ -24,9 +30,11 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.NulWriter;
 import com.jpexs.decompiler.flash.search.MethodId;
 import com.jpexs.decompiler.graph.DottedChain;
+import com.jpexs.decompiler.graph.GraphTargetItem;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -151,9 +159,52 @@ public class Traits implements Cloneable, Serializable {
         }
     }
 
-    public GraphTextWriter toString(Class[] traitTypes, Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, boolean makePackages, int scriptIndex, int classIndex, GraphTextWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel) throws InterruptedException {
-        for (int t = 0; t < traits.size(); t++) {
-            Trait trait = traits.get(t);
+    public GraphTextWriter toString(Class[] traitTypes, Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, boolean makePackages, int scriptIndex, int classIndex, GraphTextWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel, List<Integer> ignoredTraitNames) throws InterruptedException {
+
+        List<Trait> ordered = new ArrayList<>(traits);
+        loopi:
+        for (int i = 0; i < ordered.size(); i++) {
+            for (int j = i + 1; j < ordered.size(); j++) {
+                if (i == j) {
+                    continue;
+                }
+                Trait o1 = ordered.get(i);
+                Trait o2 = ordered.get(j);
+                Multiname m2 = abc.constants.getMultiname(o2.name_index);
+                if (!convertData.assignedValues.containsKey(o1)) {
+                    continue;
+                }
+                GraphTargetItem v1 = convertData.assignedValues.get(o1).value;
+
+
+                Set<GraphTargetItem> subitems1 = v1.getAllSubItemsRecursively();
+                subitems1.add(v1);
+                for (GraphTargetItem si : subitems1) {
+                    if (si instanceof GetPropertyAVM2Item) {
+                        GetPropertyAVM2Item getProp = (GetPropertyAVM2Item) si;
+                        Multiname sm1 = abc.constants.getMultiname(((FullMultinameAVM2Item) getProp.propertyName).multinameIndex);
+                        if (getProp.object instanceof FindPropertyAVM2Item && sm1.equals(m2)) {
+                            ordered.add(j + 1, o1);
+                            ordered.remove(i);
+                            i--;
+                            continue loopi;
+                        }
+                    }
+                    if (si instanceof GetLexAVM2Item) {
+                        GetLexAVM2Item lex = (GetLexAVM2Item) si;
+                        if (lex.propertyName.equals(m2)) {
+                            ordered.add(j + 1, o1);
+                            ordered.remove(i);
+                            i--;
+                            continue loopi;
+                        }
+                    }
+                }
+            }
+        }
+
+        for (Trait trait : ordered) {
+            int t = traits.indexOf(trait);
             if (traitTypes != null) {
                 boolean found = false;
                 for (Class c : traitTypes) {
@@ -167,6 +218,9 @@ public class Traits implements Cloneable, Serializable {
                 }
             }
             if (!trait.isVisible(isStatic, abc)) {
+                continue;
+            }
+            if (ignoredTraitNames.contains(trait.name_index)) {
                 continue;
             }
             writer.newLine();
@@ -240,9 +294,9 @@ public class Traits implements Cloneable, Serializable {
         }
     }
 
-    public void getDependencies(String customNs, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) {
+    public void getDependencies(int scriptIndex, int classIndex, boolean isStatic, String customNs, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) throws InterruptedException {
         for (Trait t : traits) {
-            t.getDependencies(customNs, abc, dependencies, uses, ignorePackage, fullyQualifiedNames);
+            t.getDependencies(scriptIndex, classIndex, isStatic, customNs, abc, dependencies, uses, ignorePackage, fullyQualifiedNames);
         }
     }
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types.filters;
 
 import com.jpexs.decompiler.flash.types.BasicType;
@@ -54,8 +55,8 @@ public class BLURFILTER extends FILTER {
     }
 
     @Override
-    public SerializableImage apply(SerializableImage src) {
-        return Filtering.blur(src, (int) blurX, (int) blurY, passes);
+    public SerializableImage apply(SerializableImage src, double zoom) {
+        return Filtering.blur(src, (int) Math.round(blurX * zoom), (int) Math.round(blurY * zoom), passes);
     }
 
     @Override

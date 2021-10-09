@@ -17,7 +17,12 @@ package jsyntaxpane.lexers;
 
 import jsyntaxpane.Token;
 import jsyntaxpane.TokenType;
-
+import javax.swing.text.Segment;
+import java.io.CharArrayReader;
+import java.io.IOException;
+import java.util.logging.Logger;
+import java.util.logging.Level;
+import java.util.List;
 %%
 
 %public
@@ -31,7 +36,7 @@ import jsyntaxpane.TokenType;
 
 %{
     /**
-     * Create an empty lexer, yyrset will be called later to reset and assign
+     * Create an empty lexer, yyreset will be called later to reset and assign
      * the reader
      */
     public ActionScriptLexer() {
@@ -48,6 +53,26 @@ import jsyntaxpane.TokenType;
     private static final byte CURLY     = 3;
 
     private static String xmlTagName="";
+
+    private Token prevToken = null;
+
+    @Override
+    public void parse(Segment segment, int ofst, List<Token> tokens) {
+        try {
+            CharArrayReader reader = new CharArrayReader(segment.array, segment.offset, segment.count);
+            yyreset(reader);
+            this.offset = ofst;
+            prevToken = null;
+            Token t = yylex();
+            prevToken = t;
+            for (; t != null; t = yylex()) {
+                prevToken = t;
+                tokens.add(t);
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(DefaultJFlexLexer.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
 
 %}
 
@@ -79,16 +104,6 @@ SlashVariable = {Path} ":" {Identifier}
 /* identifiers */
 
 IdentifierNs = {Identifier} ":" {Identifier}
-
-TypeNameSpec = ".<" {Identifier} ">"
-
-/* XML */
-LetterColon = [:jletter] | ":"
-XMLIdentifier = {Identifier} | {IdentifierNs}
-XMLAttribute = " "* {XMLIdentifier} " "* "=" " "* \" {InputCharacter}* \" " "*
-XMLBeginOneTag = "<" {XMLIdentifier} {XMLAttribute}* ">"
-XMLBeginTag = "<" {XMLIdentifier} " "
-XMLEndTag = "</" {XMLIdentifier} ">"
 
 /* integer literals */
 DecIntegerLiteral = 0 | [1-9][0-9]*
@@ -149,39 +164,41 @@ RegExp = \/([^\r\n/]|\\\/)+\/[a-z]*
   "while"                        |
   "with"                         |
   "dynamic"                      |
-  "final"                        |
   "internal"                     |
-  "native"                       |
   "override"                     |
   "private"                      |
-  "protected"                    |
   "public"                       |
   "static"                       |
   "class"                        |
-  "const"                        |
   "extends"                      |
   "function"                     |
   "get"                          |
   "implements"                   |
   "interface"                    |
-  "namespace"                    |
-  "package"                      |
   "set"                          |
   "var"                          |
   "import"                       |
   "include"                      |
-  "use"                          |
   "false"                        |
   "null"                         |
   "this"                         |
   "true"                         { return token(TokenType.KEYWORD); }
 
 
-  {RegExp}                       { return token(TokenType.REGEX); }
+  {RegExp}                       { 
+                                    if (prevToken == null || (prevToken.type == TokenType.OPERATOR && prevToken.pairValue >= 0)) {
+                                        return token(TokenType.REGEX);
+                                    } else {    
+                                        int ch = yychar;
+                                        yypushback(yylength()-1);
+                                        // divide "/" operator
+                                        return token(TokenType.OPERATOR,ch,1);
+                                    }
+                                 }
 
   /* operators */
 
-  "("                            { return token(TokenType.OPERATOR,  PARAN); }
+  "("                            { return  token(TokenType.OPERATOR,  PARAN); }
   ")"                            { return token(TokenType.OPERATOR, -PARAN); }
   "{"                            { return token(TokenType.OPERATOR,  CURLY); }
   "}"                            { return token(TokenType.OPERATOR, -CURLY); }
@@ -228,11 +245,8 @@ RegExp = \/([^\r\n/]|\\\/)+\/[a-z]*
   "<<="                          |
   ">>="                          |
   ">>>="                         |
-  "as"                           |
   "delete"                       |
   "instanceof"                   |
-  "is"                           |
-  "::"                           |
   "new"                          |
   "typeof"                       |
   "void"                         |
@@ -278,47 +292,12 @@ RegExp = \/([^\r\n/]|\\\/)+\/[a-z]*
   {Comment}                      { return token(TokenType.COMMENT); }
 
   /* whitespace */
-  {WhiteSpace}                   { }
-  {TypeNameSpec}                 { return token(TokenType.IDENTIFIER); }
-  {XMLBeginOneTag}                  {  yybegin(XML);
-                                    tokenStart = yychar;
-                                    tokenLength = yylength();
-                                    String s=yytext();
-                                    s=s.substring(1,s.length()-1);
-                                    if(s.contains(" ")){
-                                       s=s.substring(0,s.indexOf(" "));
-                                    }
-                                    xmlTagName = s;
-                                 }
-  /*{XMLBeginTag}                  {  yybegin(XMLSTARTTAG);
-                                    tokenStart = yychar;
-                                    tokenLength = yylength();
-                                    String s=yytext();
-                                    xmlTagName = s.substring(1);
-                                 }*/
+  {WhiteSpace}                   { }  
   /* identifiers */
   {SlashVariable}                { return token(TokenType.IDENTIFIER); }
   {Identifier}{NamespaceSuffix}  { return token(TokenType.REGEX); }
   {Identifier}                   { return token(TokenType.IDENTIFIER); }
   
-}
-
-<XMLSTARTTAG> {
-   {XMLAttribute}                { tokenLength += yylength();}
-   {WhiteSpace}                   { tokenLength += yylength(); }
-   ">"                             { yybegin(XML);  tokenLength += yylength();}
-}
-<XML> {
-   {XMLBeginOneTag}                 { tokenLength += yylength();}
-   {XMLEndTag}                   { tokenLength += yylength();
-                                   String endtagname=yytext();
-                                   endtagname=endtagname.substring(2,endtagname.length()-1);
-                                   if(endtagname.equals(xmlTagName)){
-                                       yybegin(YYINITIAL);
-                                       return token(TokenType.STRING, tokenStart, tokenLength);
-                                   }
-                                 }
-   .|\n                          { tokenLength += yylength(); }
 }
 
 <STRING> {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -69,6 +69,8 @@ public final class FlashPlayerPanel extends Panel implements Closeable, MediaDis
     private boolean closed = false;
 
     private float frameRate;
+
+    private Color bgColor;
 
     @Override
     public boolean loopAvailable() {
@@ -178,35 +180,35 @@ public final class FlashPlayerPanel extends Panel implements Closeable, MediaDis
 
             // hack: Kernel32.INSTANCE.ConnectNamedPipe never completes in ActiveXControl static constructor
             flash = CancellableWorker.call(callable, 5, TimeUnit.SECONDS);
+
+            flash.setAllowScriptAccess("always");
+            try {
+                flash.setAllowNetworking("all");
+            } catch (ActiveXException ex) {
+                // ignore
+            }
+
+            flash.addOnReadyStateChangeListener((ActiveXEvent axe) -> {
+                fireMediaDisplayStateChanged();
+            });
+
+            flash.addFlashCallListener((ActiveXEvent axe) -> {
+                String req = (String) axe.args.get("request");
+                Matcher m = Pattern.compile("<invoke name=\"([^\"]+)\" returntype=\"xml\"><arguments><string>(.*)</string></arguments></invoke>").matcher(req);
+                if (m.matches()) {
+                    String funname = m.group(1);
+                    String msg = m.group(2);
+                    if (funname.equals("alert") || funname.equals("console.log")) {
+                        if (Main.debugDialog != null) {
+                            Main.debugDialog.log(funname + ":" + msg);
+                        }
+                    }
+                }
+            });
         } catch (ActiveXException | TimeoutException | InterruptedException | ExecutionException ex) {
             logger.log(Level.WARNING, "Cannot initialize flash panel", ex);
             throw new FlashUnsupportedException();
         }
-
-        flash.setAllowScriptAccess("always");
-        try {
-            flash.setAllowNetworking("all");
-        } catch (ActiveXException ex) {
-            // ignore
-        }
-
-        flash.addOnReadyStateChangeListener((ActiveXEvent axe) -> {
-            fireMediaDisplayStateChanged();
-        });
-
-        flash.addFlashCallListener((ActiveXEvent axe) -> {
-            String req = (String) axe.args.get("request");
-            Matcher m = Pattern.compile("<invoke name=\"([^\"]+)\" returntype=\"xml\"><arguments><string>(.*)</string></arguments></invoke>").matcher(req);
-            if (m.matches()) {
-                String funname = m.group(1);
-                String msg = m.group(2);
-                if (funname.equals("alert") || funname.equals("console.log")) {
-                    if (Main.debugDialog != null) {
-                        Main.debugDialog.log(funname + ":" + msg);
-                    }
-                }
-            }
-        });
 
         timer = new Timer();
         timer.schedule(new TimerTask() {
@@ -434,5 +436,13 @@ public final class FlashPlayerPanel extends Panel implements Closeable, MediaDis
     @Override
     public void removeEventListener(MediaDisplayListener listener) {
         listeners.remove(listener);
+    }
+
+    @Override
+    public Color getBackgroundColor() {
+        if (bgColor == null) {
+            return Color.white;
+        }
+        return bgColor;
     }
 }

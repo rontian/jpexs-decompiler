@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.types;
 
 import com.jpexs.decompiler.flash.SWFInputStream;
@@ -48,7 +49,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -98,6 +101,12 @@ public final class MethodBody implements Cloneable {
 
     @Internal
     private ABC abc;
+
+    /**
+     * DependencyParser uses this
+     */
+    @Internal
+    private transient MethodBody lastConvertedBody = null;
 
     public MethodBody() {
         this.traits = new Traits();
@@ -154,17 +163,6 @@ public final class MethodBody implements Cloneable {
     public void setCode(AVM2Code code) {
         this.code = code;
         this.codeBytes = null;
-    }
-
-    public List<Integer> getExceptionEntries() {
-        List<Integer> ret = new ArrayList<>();
-        AVM2Code code = getCode();
-        for (ABCException e : exceptions) {
-            ret.add(code.adr2pos(e.start, true));
-            ret.add(code.adr2pos(e.end, true));
-            ret.add(code.adr2pos(e.target));
-        }
-        return ret;
     }
 
     public void markOffsets() {
@@ -288,12 +286,13 @@ public final class MethodBody implements Cloneable {
         return ret;
     }
 
-    public void convert(final ConvertData convertData, final String path, ScriptExportMode exportMode, final boolean isStatic, final int methodIndex, final int scriptIndex, final int classIndex, final ABC abc, final Trait trait, final ScopeStack scopeStack, final int initializerType, final NulWriter writer, final List<DottedChain> fullyQualifiedNames, final List<Traits> initTraits, boolean firstLevel) throws InterruptedException {
+    public void convert(final ConvertData convertData, final String path, ScriptExportMode exportMode, final boolean isStatic, final int methodIndex, final int scriptIndex, final int classIndex, final ABC abc, final Trait trait, final ScopeStack scopeStack, final int initializerType, final NulWriter writer, final List<DottedChain> fullyQualifiedNames, final List<Traits> initTraits, boolean firstLevel, Set<Integer> seenMethods) throws InterruptedException {
+        seenMethods.add(this.method_info);
         if (debugMode) {
             System.err.println("Decompiling " + path);
         }
         if (exportMode != ScriptExportMode.AS) {
-            getCode().toASMSource(abc.constants, abc.method_info.get(this.method_info), this, exportMode, writer);
+            getCode().toASMSource(abc, abc.constants, abc.method_info.get(this.method_info), this, exportMode, writer);
         } else {
             if ((DEBUG_FIXED != null && !path.endsWith(DEBUG_FIXED)) || (!Configuration.decompile.get())) {
                 writer.appendNoHilight(Helper.getDecompilationSkippedComment()).newLine();
@@ -306,14 +305,14 @@ public final class MethodBody implements Cloneable {
                     @Override
                     public Void call() throws InterruptedException {
                         try (Statistics s1 = new Statistics("MethodBody.convert")) {
-                            MethodBody converted = convertMethodBody(convertData, path, isStatic, scriptIndex, classIndex, abc, trait, scopeStack, initializerType != GraphTextWriter.TRAIT_INSTANCE_INITIALIZER, fullyQualifiedNames, initTraits);
+                            MethodBody converted = convertMethodBody(convertData.deobfuscationMode != 0, path, isStatic, scriptIndex, classIndex, abc, trait);
                             HashMap<Integer, String> localRegNames = getLocalRegNames(abc);
                             List<GraphTargetItem> convertedItems1;
                             try (Statistics s = new Statistics("AVM2Code.toGraphTargetItems")) {
                                 convertedItems1 = converted.getCode().toGraphTargetItems(convertData.thisHasDefaultToPrimitive, convertData, path, methodIndex, isStatic, scriptIndex, classIndex, abc, converted, localRegNames, scopeStack, initializerType, fullyQualifiedNames, initTraits, Graph.SOP_USE_STATIC, new HashMap<>(), converted.getCode().visitCode(converted));
                             }
                             try (Statistics s = new Statistics("Graph.graphToString")) {
-                                Graph.graphToString(convertedItems1, writer, LocalData.create(abc.constants, localRegNames, fullyQualifiedNames));
+                                Graph.graphToString(convertedItems1, writer, LocalData.create(abc, localRegNames, fullyQualifiedNames, seenMethods));
                             }
                             convertedItems = convertedItems1;
                         }
@@ -327,8 +326,9 @@ public final class MethodBody implements Cloneable {
                 }
             } catch (InterruptedException ex) {
                 throw ex;
+            } catch (CancellationException ex) {
+                throw new InterruptedException();
             } catch (Exception | OutOfMemoryError | StackOverflowError ex) {
-
                 convertException = ex;
                 Throwable cause = ex.getCause();
                 if (ex instanceof ExecutionException && cause instanceof Exception) {
@@ -344,9 +344,11 @@ public final class MethodBody implements Cloneable {
         }
     }
 
-    public GraphTextWriter toString(final String path, ScriptExportMode exportMode, final ABC abc, final Trait trait, final GraphTextWriter writer, final List<DottedChain> fullyQualifiedNames) throws InterruptedException {
+    public GraphTextWriter toString(final String path, ScriptExportMode exportMode, final ABC abc, final Trait trait, final GraphTextWriter writer, final List<DottedChain> fullyQualifiedNames, Set<Integer> seenMethods) throws InterruptedException {
+        seenMethods.add(method_info);
+
         if (exportMode != ScriptExportMode.AS) {
-            getCode().toASMSource(abc.constants, abc.method_info.get(this.method_info), this, exportMode, writer);
+            getCode().toASMSource(abc, abc.constants, abc.method_info.get(this.method_info), this, exportMode, writer);
         } else {
             if ((DEBUG_FIXED != null && !path.endsWith(DEBUG_FIXED)) || (!Configuration.decompile.get())) {
                 //writer.startMethod(this.method_info);
@@ -367,7 +369,7 @@ public final class MethodBody implements Cloneable {
                         writer.appendNoHilight(this.method_info);
                         writer.newLine();
                     }
-                    Graph.graphToString(convertedItems, writer, LocalData.create(abc.constants, localRegNames, fullyQualifiedNames));
+                    Graph.graphToString(convertedItems, writer, LocalData.create(abc, localRegNames, fullyQualifiedNames, seenMethods));
                     //writer.endMethod();
                 } else if (convertException instanceof TimeoutException) {
                     // exception was logged in convert method
@@ -381,12 +383,24 @@ public final class MethodBody implements Cloneable {
         return writer;
     }
 
-    public MethodBody convertMethodBody(ConvertData convertData, String path, boolean isStatic, int scriptIndex, int classIndex, ABC abc, Trait trait, ScopeStack scopeStack, boolean isStaticInitializer, List<DottedChain> fullyQualifiedNames, List<Traits> initTraits) throws InterruptedException {
+    public MethodBody convertMethodBodyCanUseLast(boolean deobfuscate, String path, boolean isStatic, int scriptIndex, int classIndex, ABC abc, Trait trait) throws InterruptedException {
+        if (lastConvertedBody != null) {
+            return lastConvertedBody;
+        }
+        return convertMethodBody(deobfuscate, path, isStatic, scriptIndex, classIndex, abc, trait);
+    }
+
+    public void clearLastConverted() {
+        this.lastConvertedBody = null;
+    }
+
+    public MethodBody convertMethodBody(boolean deobfuscate, String path, boolean isStatic, int scriptIndex, int classIndex, ABC abc, Trait trait) throws InterruptedException {
         MethodBody body = clone();
         AVM2Code code = body.getCode();
+        code.markVirtualAddresses();
         code.fixJumps(path, body);
 
-        if (convertData.deobfuscationMode != 0) {
+        if (deobfuscate) {
             try {
                 code.removeTraps(trait, method_info, body, abc, scriptIndex, classIndex, isStatic, path);
             } catch (ThreadDeath | InterruptedException ex) {
@@ -401,17 +415,18 @@ public final class MethodBody implements Cloneable {
             }
         }
 
+        lastConvertedBody = body;
         return body;
     }
 
-    public String toSource() {
+    public String toSource(int scriptIndex, Set<Integer> seenMethods) {
         ConvertData convertData = new ConvertData();
         convertData.deobfuscationMode = 0;
         try {
-            convert(convertData, "", ScriptExportMode.AS, false, method_info, 0, 0, abc, null, new ScopeStack(), 0, new NulWriter(), new ArrayList<>(), new ArrayList<>(), true);
+            convert(convertData, "", ScriptExportMode.AS, false, method_info, 0, 0, abc, null, new ScopeStack(), 0, new NulWriter(), new ArrayList<>(), new ArrayList<>(), true, seenMethods);
             HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), false);
             writer.indent().indent().indent();
-            toString("", ScriptExportMode.AS, abc, null, writer, new ArrayList<>());
+            toString("", ScriptExportMode.AS, abc, null, writer, new ArrayList<>(), seenMethods);
             writer.unindent().unindent().unindent();
             return writer.toString();
         } catch (InterruptedException ex) {
@@ -454,7 +469,7 @@ public final class MethodBody implements Cloneable {
 
     public boolean autoFillStats(ABC abc, int initScope, boolean hasThis) {
         //System.out.println("--------------");
-        CodeStats stats = getCode().getStats(abc, this, initScope);
+        CodeStats stats = getCode().getStats(abc, this, initScope, true);
         if (stats == null) {
             return false;
         }

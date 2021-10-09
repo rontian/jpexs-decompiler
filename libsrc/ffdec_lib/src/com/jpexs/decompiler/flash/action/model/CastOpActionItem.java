@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -22,10 +23,11 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  *
@@ -38,11 +40,9 @@ public class CastOpActionItem extends ActionItem {
     public GraphTargetItem object;
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.add(constructor);
-        ret.add(object);
-        return ret;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(constructor);
+        visitor.visit(object);
     }
 
     public CastOpActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem constructor, GraphTargetItem object) {
@@ -53,10 +53,11 @@ public class CastOpActionItem extends ActionItem {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        writer.append("(");
         stripQuotes(constructor, localData, writer);
+        writer.append("(");
+        object.toString(writer, localData);
         writer.append(")");
-        return object.toString(writer, localData);
+        return writer;
     }
 
     @Override
@@ -76,4 +77,55 @@ public class CastOpActionItem extends ActionItem {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 29 * hash + Objects.hashCode(this.constructor);
+        hash = 29 * hash + Objects.hashCode(this.object);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final CastOpActionItem other = (CastOpActionItem) obj;
+        if (!Objects.equals(this.constructor, other.constructor)) {
+            return false;
+        }
+        if (!Objects.equals(this.object, other.object)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final CastOpActionItem other = (CastOpActionItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(this.constructor, other.constructor)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.object, other.object)) {
+            return false;
+        }
+        return true;
+    }
+
 }

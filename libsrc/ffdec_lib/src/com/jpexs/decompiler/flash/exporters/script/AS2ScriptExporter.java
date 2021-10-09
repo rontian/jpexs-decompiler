@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.script;
 
 import com.jpexs.decompiler.flash.AbortRetryIgnoreHandler;
@@ -26,7 +27,6 @@ import com.jpexs.helpers.Helper;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +62,7 @@ public class AS2ScriptExporter {
         int cnt = 1;
         List<ExportScriptTask> tasks = new ArrayList<>();
         String[] keys = asms.keySet().toArray(new String[asms.size()]);
-        Arrays.sort(keys);
+
         for (String key : keys) {
             ASMSource asm = asms.get(key);
             String currentOutDir = outdir + key + File.separator;
@@ -117,7 +117,7 @@ public class AS2ScriptExporter {
             try {
                 executor.shutdown();
                 if (!executor.awaitTermination(Configuration.exportTimeout.get(), TimeUnit.SECONDS)) {
-                    logger.log(Level.SEVERE, Helper.formatTimeToText(Configuration.exportTimeout.get()) + " ActionScript export limit reached");
+                    logger.log(Level.SEVERE, "{0} ActionScript export limit reached", Helper.formatTimeToText(Configuration.exportTimeout.get()));
                 }
             } catch (InterruptedException ex) {
             } finally {

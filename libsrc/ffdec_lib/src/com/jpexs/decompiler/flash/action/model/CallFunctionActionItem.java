@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,7 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
@@ -44,8 +45,8 @@ public class CallFunctionActionItem extends ActionItem {
     public GraphTargetItem calculatedFunction;
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        return arguments;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visitAll(arguments);
     }
 
     public CallFunctionActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem functionName, List<GraphTargetItem> arguments) {
@@ -140,6 +141,24 @@ public class CallFunctionActionItem extends ActionItem {
     }
 
     @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final CallFunctionActionItem other = (CallFunctionActionItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(functionName, other.functionName)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.arguments, other.arguments)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return toSourceMerge(localData, generator, toSourceCall(localData, generator, arguments), functionName, new ActionCallFunction());
     }
@@ -148,4 +167,10 @@ public class CallFunctionActionItem extends ActionItem {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true;
+    }
+
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -34,8 +35,8 @@ public class ConstructSomethingAVM2Item extends CallAVM2Item {
 
     public List<NamespaceItem> openedNamespaces;
 
-    public ConstructSomethingAVM2Item(int line, List<NamespaceItem> openedNamespaces, GraphTargetItem name, List<GraphTargetItem> arguments) {
-        super(openedNamespaces, line, name, arguments);
+    public ConstructSomethingAVM2Item(int line, List<NamespaceItem> openedNamespaces, GraphTargetItem name, List<GraphTargetItem> arguments, AbcIndexing abcIndex) {
+        super(openedNamespaces, line, name, arguments, abcIndex);
         this.openedNamespaces = openedNamespaces;
     }
 
@@ -96,5 +97,10 @@ public class ConstructSomethingAVM2Item extends CallAVM2Item {
             return ((NamespacedAVM2Item) resname).toSource(localData, generator, true, false, arguments, false, true);
         }
         return toSourceMerge(localData, generator, resname, arguments, ins(AVM2Instructions.Construct, arguments.size()));
+    }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true;
     }
 }

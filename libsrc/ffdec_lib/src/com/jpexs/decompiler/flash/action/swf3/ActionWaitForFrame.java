@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,8 +12,7 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library.
- */
+ * License along with this library. */
 package com.jpexs.decompiler.flash.action.swf3;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -101,7 +100,7 @@ public class ActionWaitForFrame extends Action implements ActionStore {
 
     @Override
     public void translate(boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) throws InterruptedException {
-        GraphTargetItem frameTi = new DirectValueActionItem(null, null, 0, new Long(frame), new ArrayList<>());
+        GraphTargetItem frameTi = new DirectValueActionItem(null, null, 0, (Long)((long)frame), new ArrayList<>());
         List<GraphTargetItem> body = ActionGraph.translateViaGraph(insideDoInitAction, regNames, variables, functions, skipped, SWF.DEFAULT_VERSION, staticOperation, path);
         output.add(new IfFrameLoadedActionItem(frameTi, body, this, lineStartAction));
     }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -90,12 +90,10 @@ public class AS2Generator {
                 s.append("}");
                 doa = null;
             }
-            /*try (PrintWriter pw = new PrintWriter("as2_teststub.java")) {
-             pw.println(s.toString());
-             }*/
-            try (FileOutputStream fos = new FileOutputStream("as2_teststub.java")) {
-                fos.write(Utf8Helper.getBytes(s.toString()));
-            }
         }
+        try (FileOutputStream fos = new FileOutputStream("as2_teststub.java")) {
+            fos.write(Utf8Helper.getBytes(s.toString()));
+        }
+        System.exit(0);
     }
 }

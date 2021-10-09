@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,6 +29,7 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.other.ThrowIns;
 import com.jpexs.decompiler.flash.abc.types.Float4;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSource;
@@ -41,7 +42,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -63,6 +66,17 @@ public class AVM2Instruction implements Cloneable, GraphSourceItem {
 
     private String file;
 
+    private long virtualAddress = -1;
+
+    private static final Map<String, String> oldStyleNames = new HashMap<>();
+
+    static {
+        for (int i = 0; i <= 3; i++) {
+            oldStyleNames.put("getlocal" + i, "getlocal_" + i);
+            oldStyleNames.put("setlocal" + i, "setlocal_" + i);
+        }
+    }
+
     @Override
     public long getFileOffset() {
         return -1;
@@ -70,6 +84,9 @@ public class AVM2Instruction implements Cloneable, GraphSourceItem {
 
     @Override
     public long getLineOffset() {
+        if (virtualAddress > -1) {
+            return virtualAddress;
+        }
         return getAddress();
     }
 
@@ -225,6 +242,9 @@ public class AVM2Instruction implements Cloneable, GraphSourceItem {
     public String getParams(AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames) {
         StringBuilder s = new StringBuilder();
         for (int i = 0; i < definition.operands.length; i++) {
+            if (i > 0) {
+                s.append(",");
+            }
             switch (definition.operands[i]) {
                 case AVM2Code.DAT_NAMESPACE_INDEX:
                     if (operands[i] == 0) {
@@ -328,12 +348,23 @@ public class AVM2Instruction implements Cloneable, GraphSourceItem {
                     s.append(Helper.formatAddress(address + operands[i]));
                     break;
                 case AVM2Code.OPT_CASE_OFFSETS:
-                    s.append(" ");
-                    s.append(operands[i]);
-                    for (int j = i + 1; j < operands.length; j++) {
+                    if (Configuration.useOldStyleLookupSwitchAs3PCode.get()) {
                         s.append(" ");
+                        s.append(operands[i]);
+                    } else {
+                        s.append(" [");
+                    }
+                    boolean first = !Configuration.useOldStyleLookupSwitchAs3PCode.get();
+                    for (int j = i + 1; j < operands.length; j++) {
+                        if (!first) {
+                            s.append(", ");
+                        }
+                        first = false;
                         s.append("ofs");
                         s.append(Helper.formatAddress(address + operands[j]));
+                    }
+                    if (!Configuration.useOldStyleLookupSwitchAs3PCode.get()) {
+                        s.append("]");
                     }
                     break;
                 default:
@@ -361,15 +392,27 @@ public class AVM2Instruction implements Cloneable, GraphSourceItem {
     }
 
     public GraphTextWriter toString(GraphTextWriter writer, LocalData localData) {
-        writer.appendNoHilight(Helper.formatAddress(address) + " " + String.format("%-30s", Helper.byteArrToString(getBytes())) + definition.instructionName);
+        writer.appendNoHilight(Helper.formatAddress(address) + " " + String.format("%-30s", Helper.byteArrToString(getBytes())) + getCustomizedInstructionName());
         writer.appendNoHilight(getParams(localData.constantsAvm2, localData.fullyQualifiedNames) + getComment());
         return writer;
     }
 
+    private String getCustomizedInstructionName() {
+        if (Configuration.useOldStyleGetSetLocalsAs3PCode.get() && oldStyleNames.containsKey(definition.instructionName)) {
+            return oldStyleNames.get(definition.instructionName);
+        }
+        return definition.instructionName;
+    }
+
     public String toStringNoAddress(AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames) {
-        String s = definition.instructionName;
+        String s = getCustomizedInstructionName();
+        if (Configuration.padAs3PCodeInstructionName.get()) {
+            for (int i = s.length(); i < 19; i++) {
+                s += " ";
+            }
+        }
         s += getParams(constants, fullyQualifiedNames) + getComment();
-        return s;
+        return s.trim();
     }
 
     @Override
@@ -530,4 +573,13 @@ public class AVM2Instruction implements Cloneable, GraphSourceItem {
         body.setModified();
     }
 
+    @Override
+    public long getVirtualAddress() {
+        return virtualAddress;
+    }
+
+    @Override
+    public void setVirtualAddress(long virtualAddress) {
+        this.virtualAddress = virtualAddress;
+    }
 }

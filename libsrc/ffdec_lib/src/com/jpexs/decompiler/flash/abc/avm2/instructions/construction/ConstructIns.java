@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.construction;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -106,8 +107,8 @@ public class ConstructIns extends InstructionDefinition {
                 FullMultinameAVM2Item fptXmlMult = (FullMultinameAVM2Item) fpt.propertyName;
                 FullMultinameAVM2Item gptXmlMult = (FullMultinameAVM2Item) gpt.propertyName;
 
-                isXML = fptXmlMult.isXML(localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames)
-                        && gptXmlMult.isXML(localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames);
+                isXML = fptXmlMult.isXML(localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods)
+                        && gptXmlMult.isXML(localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods);
             }
         }
         if (obj instanceof GetLexAVM2Item) {
@@ -134,8 +135,8 @@ public class ConstructIns extends InstructionDefinition {
                 FullMultinameAVM2Item fptRegExpMult = (FullMultinameAVM2Item) fpt.propertyName;
                 FullMultinameAVM2Item gptRegExpMult = (FullMultinameAVM2Item) gpt.propertyName;
 
-                isRegExp = fptRegExpMult.isTopLevel("RegExp", localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames)
-                        && gptRegExpMult.isTopLevel("RegExp", localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames);
+                isRegExp = fptRegExpMult.isTopLevel("RegExp", localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods)
+                        && gptRegExpMult.isTopLevel("RegExp", localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods);
             }
         }
         if (obj instanceof GetLexAVM2Item) {

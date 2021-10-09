@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,14 +12,18 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
+import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.action.model.ConstantPool;
 import com.jpexs.decompiler.graph.DottedChain;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -37,17 +41,23 @@ public class LocalData {
 
     public List<DottedChain> fullyQualifiedNames;
 
+    public Set<Integer> seenMethods = new HashSet<>();
+
+    public ABC abc;
+
     public static LocalData create(ConstantPool constants) {
         LocalData localData = new LocalData();
         localData.constants = constants;
         return localData;
     }
 
-    public static LocalData create(AVM2ConstantPool constants, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames) {
+    public static LocalData create(ABC abc, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames, Set<Integer> seenMethods) {
         LocalData localData = new LocalData();
-        localData.constantsAvm2 = constants;
+        localData.abc = abc;
+        localData.constantsAvm2 = abc.constants;
         localData.localRegNames = localRegNames;
         localData.fullyQualifiedNames = fullyQualifiedNames;
+        localData.seenMethods = seenMethods;
         return localData;
     }
 }

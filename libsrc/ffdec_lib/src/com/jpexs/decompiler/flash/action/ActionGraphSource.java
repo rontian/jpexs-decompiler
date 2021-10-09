@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,14 +18,13 @@ package com.jpexs.decompiler.flash.action;
 
 import com.jpexs.decompiler.flash.BaseLocalData;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
-import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
-import com.jpexs.helpers.Reference;
 import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSource;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
 import com.jpexs.helpers.Helper;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -156,37 +155,11 @@ public class ActionGraphSource extends GraphSource {
             if (!posCache.isEmpty() && (adr > posCache.get(posCache.size() - 1))) {
                 return size();
             }
-            //ret = adr2posInside(adr);
             if (ret == -1) {
                 Logger.getLogger(ActionGraphSource.class.getName()).log(Level.SEVERE, "{0} - address loc{1} not found", new Object[]{path, Helper.formatAddress(adr)});
-                /*System.err.println("Addr loc"+Helper.formatAddress(adr)+" not found");
-                 int pos=0;
-                 for(long l:posCache){
-                 System.err.println("ip "+pos+" action "+get(pos).toString()+" loc"+Helper.formatAddress(l));
-                 pos++;
-                 }*/
             }
         }
         return ret;
-        /*int pos = 0;
-         long lastAddr = 0;
-         for (Action a : actions) {
-         lastAddr = a.getAddress();
-         System.err.println("ip "+pos+" addr "+Helper.formatAddress(lastAddr));
-         if (lastAddr == adr) {
-         return pos;
-         }
-
-         pos++;
-         }
-         if (adr > lastAddr) {
-         return actions.size();
-         }
-         if (adr == 0) {
-         return 0;
-         }
-         //throw new RuntimeException("Address "+Helper.formatAddress(adr)+" not found");
-         return -1;*/
     }
 
     @Override
@@ -197,4 +170,29 @@ public class ActionGraphSource extends GraphSource {
         }
         return 0;
     }
+
+    @Override
+    public int adr2pos(long adr, boolean nearest) {
+        if (posCache == null) {
+            rebuildCache();
+        }
+        if (adr == 0) {
+            return 0;
+        }
+        int ret = posCache.indexOf((Long) adr);
+        if (ret == -1) {
+            if (!posCache.isEmpty() && (adr > posCache.get(posCache.size() - 1))) {
+                return size();
+            }
+            for (int i = 0; i < posCache.size(); i++) {
+                Long a = posCache.get(i);
+                if (a > adr) {
+                    return i;
+                }
+            }
+            return size();
+        }
+        return ret;
+    }
+
 }

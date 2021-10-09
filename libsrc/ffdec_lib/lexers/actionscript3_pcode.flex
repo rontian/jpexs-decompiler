@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2016 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -225,6 +225,7 @@ ExceptionTarget = "exceptiontarget "{PositiveNumberLiteral}":"
   "target"                     {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_TARGET, yytext());}
   "name"                       {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_NAME, yytext());}
   "type"                       {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_TYPE, yytext());}
+  "end"                        {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_END, yytext());} 
   
   "slot"                        {  yybegin(PARAMETERS); return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_SLOT, yytext());}
   "const"                       {  yybegin(PARAMETERS); return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_CONST, yytext());}
@@ -258,7 +259,8 @@ ExceptionTarget = "exceptiontarget "{PositiveNumberLiteral}":"
   "Utf8"                       {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_UTF8, yytext());}
   "True"                       {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_TRUE, yytext());}
   "False"                      {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_FALSE, yytext());}
-  "Undefined"                  {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_UNDEFINED, yytext());}
+  "Void"                       {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_VOID, yytext());}
+  "Undefined"                  {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_VOID, yytext());}
    
 
   "FINAL"                      {  return new ParsedSymbol(ParsedSymbol.TYPE_KEYWORD_FINAL, yytext());}

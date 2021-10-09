@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -30,9 +30,6 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.fail;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.fail;
 
 /**
  *
@@ -113,7 +110,7 @@ public class ActionDefineFunctionPushRegisterCleanerTest extends ActionScript2Te
                 + "{\r\n"
                 + "return _loc2_ + 7;\r\n"
                 + "}\r\n"
-                + "_loc1_ = _loc1_ + 27;\r\n"
+                + "_loc1_ += 27;\r\n"
                 + "_loc1_ = _loc1_ + 1;\r\n"
                 + "}\r\n"
                 + "}\r\n"

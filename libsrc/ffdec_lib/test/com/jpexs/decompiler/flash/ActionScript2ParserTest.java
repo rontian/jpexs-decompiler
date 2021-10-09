@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,6 +19,7 @@ package com.jpexs.decompiler.flash;
 import com.jpexs.decompiler.flash.action.parser.script.ActionScript2Parser;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.graph.CompilationException;
 import java.io.IOException;
 import static org.testng.Assert.fail;
@@ -39,7 +40,9 @@ public class ActionScript2ParserTest extends ActionScript2TestBase {
 
     private void parseAS2(String script) {
         try {
-            ActionScript2Parser par = new ActionScript2Parser(SWF.DEFAULT_VERSION);
+            SWF swf = new SWF();
+            swf.version = SWF.DEFAULT_VERSION;
+            ActionScript2Parser par = new ActionScript2Parser(swf, new DoActionTag(swf));
             par.actionsFromString(script);
         } catch (IOException | CompilationException | ParseException ex) {
             fail("Unable to parse: " + script, ex);

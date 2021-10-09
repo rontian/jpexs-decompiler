@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -89,7 +90,7 @@ public class DirectEditingTest extends FileTestBase {
 
                         System.out.println("Recompiling:" + classPathString + "...");
                         try {
-                            en.toSource(htw, abc.script_info.get(s).traits.traits, new ConvertData(), ScriptExportMode.AS, false);
+                            en.toSource(htw, abc.script_info.get(s).traits.traits, new ConvertData(), ScriptExportMode.AS, false, false);
                             String original = htw.toString();
                             abc.replaceScriptPack(As3ScriptReplacerFactory.createFFDec() /*TODO: test the otherone*/, en, original);
                         } catch (As3ScriptReplaceException ex) {
@@ -108,8 +109,9 @@ public class DirectEditingTest extends FileTestBase {
                         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
                         asm.getActionScriptSource(writer, null);
                         String as = writer.toString();
-                        as = asm.removePrefixAndSuffix(as);
-                        ActionScript2Parser par = new ActionScript2Parser(swf.version);
+                        //as = asm.removePrefixAndSuffix(as);
+
+                        ActionScript2Parser par = new ActionScript2Parser(swf, asm);
                         try {
                             asm.setActions(par.actionsFromString(as));
                         } catch (ActionParseException | CompilationException ex) {
@@ -118,7 +120,7 @@ public class DirectEditingTest extends FileTestBase {
                         writer = new HighlightedTextWriter(new CodeFormatting(), false);
                         asm.getActionScriptSource(writer, null);
                         String as2 = writer.toString();
-                        as2 = asm.removePrefixAndSuffix(as2);
+                        //as2 = asm.removePrefixAndSuffix(as2);
                         try {
                             asm.setActions(par.actionsFromString(as2));
                         } catch (ActionParseException | CompilationException ex) {
@@ -127,7 +129,7 @@ public class DirectEditingTest extends FileTestBase {
                         writer = new HighlightedTextWriter(new CodeFormatting(), false);
                         asm.getActionScriptSource(writer, null);
                         String as3 = writer.toString();
-                        as3 = asm.removePrefixAndSuffix(as3);
+                        //as3 = asm.removePrefixAndSuffix(as3);
                         if (!as3.equals(as2)) {
                             fail("ActionScript is different: " + asm.getSwf().getShortFileName() + "/" + asm.toString());
                         }

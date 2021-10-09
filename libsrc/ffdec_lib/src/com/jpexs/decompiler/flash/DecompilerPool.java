@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.ScriptPack;
@@ -26,6 +27,10 @@ import com.jpexs.decompiler.flash.helpers.HighlightedText;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.helpers.ImmediateFuture;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -42,6 +47,8 @@ import java.util.logging.Logger;
 public class DecompilerPool {
 
     private final ThreadPoolExecutor executor;
+
+    private Map<SWF, List<Future<HighlightedText>>> swfToFutures = new WeakHashMap<>();
 
     public DecompilerPool() {
         int threadCount = Configuration.getParallelThreadCount();
@@ -95,7 +102,7 @@ public class DecompilerPool {
                 }
                 boolean parallel = Configuration.parallelSpeedUp.get();
                 HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), true);
-                pack.toSource(writer, script == null ? null : script.traits.traits, new ConvertData(), ScriptExportMode.AS, parallel);
+                pack.toSource(writer, script == null ? null : script.traits.traits, new ConvertData(), ScriptExportMode.AS, parallel, false);
 
                 HighlightedText result = new HighlightedText(writer);
                 SWF swf = pack.getSwf();
@@ -147,6 +154,11 @@ public class DecompilerPool {
 
     public HighlightedText decompile(ASMSource src, ActionList actions) throws InterruptedException {
         Future<HighlightedText> future = submitTask(src, actions, null);
+        SWF swf = src.getSwf();
+        if (!swfToFutures.containsKey(swf)) {
+            swfToFutures.put(swf, new ArrayList<>());
+        }
+        swfToFutures.get(swf).add(future);
         try {
             return future.get();
         } catch (InterruptedException ex) {
@@ -154,6 +166,11 @@ public class DecompilerPool {
             throw ex;
         } catch (ExecutionException ex) {
             Logger.getLogger(DecompilerPool.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            List<Future<HighlightedText>> futures = swfToFutures.get(swf);
+            if (futures != null) {
+                futures.remove(future);
+            }
         }
 
         return null;
@@ -161,6 +178,12 @@ public class DecompilerPool {
 
     public HighlightedText decompile(ScriptPack pack) throws InterruptedException {
         Future<HighlightedText> future = submitTask(pack, null);
+
+        SWF swf = pack.getSwf();
+        if (!swfToFutures.containsKey(swf)) {
+            swfToFutures.put(swf, new ArrayList<>());
+        }
+        swfToFutures.get(swf).add(future);
         try {
             return future.get();
         } catch (InterruptedException ex) {
@@ -168,6 +191,11 @@ public class DecompilerPool {
             throw ex;
         } catch (ExecutionException ex) {
             Logger.getLogger(DecompilerPool.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            List<Future<HighlightedText>> futures = swfToFutures.get(swf);
+            if (futures != null) {
+                futures.remove(future);
+            }
         }
 
         return null;
@@ -176,6 +204,15 @@ public class DecompilerPool {
     public void shutdown() throws InterruptedException {
         executor.shutdown();
         if (!executor.awaitTermination(100, TimeUnit.SECONDS)) {
+        }
+    }
+    
+    public void destroySwf(SWF swf){
+        List<Future<HighlightedText>> futures = swfToFutures.get(swf);
+        if(futures!=null){
+           for(Future<HighlightedText> future:futures){
+               future.cancel(true);
+           }
         }
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,9 @@ import com.jpexs.decompiler.flash.abc.avm2.parser.pcode.ASM3Parser;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppStrings;
+import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.View;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.gui.editor.LineMarkedEditorPane;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.Highlighting;
@@ -35,7 +37,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 
@@ -60,7 +61,7 @@ public class SlotConstTraitDetailPanel extends JPanel implements TraitDetail {
     public SlotConstTraitDetailPanel(final DecompiledEditorPane editor) {
         slotConstEditor = new LineMarkedEditorPane();
         setLayout(new BorderLayout());
-        add(new JScrollPane(slotConstEditor), BorderLayout.CENTER);
+        add(new FasterScrollPane(slotConstEditor), BorderLayout.CENTER);
         slotConstEditor.setFont(Configuration.getSourceFont());
         slotConstEditor.changeContentType("text/flasm3");
         slotConstEditor.addCaretListener(new CaretListener() {
@@ -115,7 +116,7 @@ public class SlotConstTraitDetailPanel extends JPanel implements TraitDetail {
                 return false;
             }
         } catch (AVM2ParseException ex) {
-            View.showMessageDialog(slotConstEditor, ex.text, AppStrings.translate("error.slotconst.typevalue"), JOptionPane.ERROR_MESSAGE);
+            ViewMessages.showMessageDialog(slotConstEditor, ex.text, AppStrings.translate("error.slotconst.typevalue"), JOptionPane.ERROR_MESSAGE);
             return false;
         } catch (IOException ex) {
             Logger.getLogger(SlotConstTraitDetailPanel.class.getName()).log(Level.SEVERE, null, ex);
@@ -130,9 +131,12 @@ public class SlotConstTraitDetailPanel extends JPanel implements TraitDetail {
     @Override
     public void setEditMode(boolean val) {
         if (val && active) {
-            JOptionPane.showMessageDialog(null, AppStrings.translate("warning.initializers"), AppStrings.translate("message.warning"), JOptionPane.WARNING_MESSAGE);
+            ViewMessages.showMessageDialog(this, AppStrings.translate("warning.initializers"), AppStrings.translate("message.warning"), JOptionPane.WARNING_MESSAGE, Configuration.warningInitializers);
         }
         slotConstEditor.setEditable(val);
+        if (val) {
+            slotConstEditor.requestFocusInWindow();
+        }
     }
 
     private boolean active = false;

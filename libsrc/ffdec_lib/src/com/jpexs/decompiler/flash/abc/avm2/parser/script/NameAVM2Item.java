@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,14 +16,19 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
-import com.jpexs.helpers.Reference;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.abc.ABC;
+import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
+import com.jpexs.decompiler.flash.abc.avm2.model.BooleanAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.IntegerValueAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.NanAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.NullAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.UndefinedAVM2Item;
+import com.jpexs.decompiler.flash.abc.types.MethodBody;
+import com.jpexs.decompiler.flash.abc.types.traits.Trait;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
@@ -32,9 +37,11 @@ import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import com.jpexs.decompiler.graph.model.UnboundedTypeItem;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  *
@@ -66,9 +73,11 @@ public class NameAVM2Item extends AssignableAVM2Item {
 
     public GraphTargetItem redirect;
 
+    private AbcIndexing abcIndex;
+
     @Override
     public AssignableAVM2Item copy() {
-        NameAVM2Item c = new NameAVM2Item(type, line, variableName, assignedValue, definition, openedNamespaces);
+        NameAVM2Item c = new NameAVM2Item(type, line, variableName, assignedValue, definition, openedNamespaces, abcIndex);
         c.setNs(ns);
         c.regNumber = regNumber;
         c.unresolved = unresolved;
@@ -128,7 +137,7 @@ public class NameAVM2Item extends AssignableAVM2Item {
         return variableName;
     }
 
-    public NameAVM2Item(GraphTargetItem type, int line, String variableName, GraphTargetItem storeValue, boolean definition, List<NamespaceItem> openedNamespaces) {
+    public NameAVM2Item(GraphTargetItem type, int line, String variableName, GraphTargetItem storeValue, boolean definition, List<NamespaceItem> openedNamespaces, AbcIndexing abcIndex) {
         super(storeValue);
         this.variableName = variableName;
         this.assignedValue = storeValue;
@@ -136,6 +145,7 @@ public class NameAVM2Item extends AssignableAVM2Item {
         this.line = line;
         this.type = type;
         this.openedNamespaces = openedNamespaces;
+        this.abcIndex = abcIndex;
     }
 
     public boolean isDefinition() {
@@ -157,6 +167,8 @@ public class NameAVM2Item extends AssignableAVM2Item {
                 return new UndefinedAVM2Item(null, null);
             case "int":
                 return new IntegerValueAVM2Item(null, null, 0L);
+            case "Boolean":
+                return new BooleanAVM2Item(null, null, Boolean.FALSE);
             case "Number":
                 return new NanAVM2Item(null, null);
             default:
@@ -198,6 +210,7 @@ public class NameAVM2Item extends AssignableAVM2Item {
     }
 
     private List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn) throws CompilationException {
+        addTraitUsage(localData, localData.callStack);
         if (variableName != null && regNumber == -1 && slotNumber == -1 && ns == null) {
             throw new CompilationException("No register or slot set for " + variableName, line);
         }
@@ -239,6 +252,7 @@ public class NameAVM2Item extends AssignableAVM2Item {
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        addTraitUsage(localData, localData.callStack);
         if (redirect != null) {
             return redirect.toSource(localData, generator);
         }
@@ -277,8 +291,27 @@ public class NameAVM2Item extends AssignableAVM2Item {
         return type;
     }
 
+    private void addTraitUsage(SourceGeneratorLocalData localData, List<MethodBody> callStack) {
+        ABC abcV = abcIndex.getSelectedAbc();
+        AVM2ConstantPool constants = abcV.constants;
+        for (MethodBody b : callStack) {
+            for (int i = 0; i < b.traits.traits.size(); i++) {
+                Trait t = b.traits.traits.get(i);
+                if (t.getName(abcV).getName(constants, null, true, true).equals(variableName)) {
+                    if (t instanceof TraitSlotConst) {
+                        if (!localData.traitUsages.containsKey(b)) {
+                            localData.traitUsages.put(b, new ArrayList<>());
+                        }
+                        localData.traitUsages.get(b).add(i);
+                    }
+                }
+            }
+        }
+    }
+
     @Override
     public List<GraphSourceItem> toSourceChange(SourceGeneratorLocalData localData, SourceGenerator generator, boolean post, boolean decrement, boolean needsReturn) throws CompilationException {
+        addTraitUsage(localData, localData.callStack);
         if (redirect != null) {
             return ((AssignableAVM2Item) redirect).toSourceChange(localData, generator, post, decrement, needsReturn);
         }
@@ -320,4 +353,30 @@ public class NameAVM2Item extends AssignableAVM2Item {
                 slotNumber > -1 ? ins(AVM2Instructions.SetSlot, slotNumber) : null
         );
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 13 * hash + Objects.hashCode(this.variableName);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NameAVM2Item other = (NameAVM2Item) obj;
+        if (!Objects.equals(this.variableName, other.variableName)) {
+            return false;
+        }
+        return true;
+    }
+
 }

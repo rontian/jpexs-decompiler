@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,9 +16,9 @@
  */
 package com.jpexs.decompiler.flash.gui.editor;
 
-import com.jpexs.helpers.Reference;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppStrings;
+import com.jpexs.helpers.Reference;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.FontMetrics;
@@ -671,7 +671,11 @@ public class LineMarkedEditorPane extends UndoFixedEditorPane implements LinkHan
             line += firstLineOffset();
             g.fillRect(0, d + lh * (line - 1), getWidth(), lh);
         }
-        super.paint(g);
+        try {
+            super.paint(g);
+        } catch (Exception ex) {
+            //ignore
+        }
         for (int line : lineMarkers.keySet()) {
 
             SortedSet<LineMarker> cs = lineMarkers.get(line);

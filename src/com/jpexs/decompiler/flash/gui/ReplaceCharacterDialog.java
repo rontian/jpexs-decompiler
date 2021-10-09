@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ import com.jpexs.decompiler.flash.tags.base.CharacterTag;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.util.Map;
 import javax.swing.JButton;
@@ -43,7 +44,8 @@ public class ReplaceCharacterDialog extends AppDialog {
 
     private int result = ERROR_OPTION;
 
-    public ReplaceCharacterDialog() {
+    public ReplaceCharacterDialog(Window owner) {
+        super(owner);
         setSize(400, 150);
         setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
         setLayout(new BorderLayout());

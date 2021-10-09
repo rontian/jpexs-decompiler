@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -33,7 +33,9 @@ import com.jpexs.decompiler.graph.Graph;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
+import com.jpexs.decompiler.graph.model.BranchStackResistant;
 import com.jpexs.decompiler.graph.model.LocalData;
 import com.jpexs.helpers.Helper;
 import java.util.ArrayList;
@@ -41,14 +43,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
  *
  * @author JPEXS
  */
-public class FunctionActionItem extends ActionItem {
+public class FunctionActionItem extends ActionItem implements BranchStackResistant {
 
     public List<GraphTargetItem> actions;
 
@@ -80,10 +81,8 @@ public class FunctionActionItem extends ActionItem {
     public static final int REGISTER_GLOBAL = 6;
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.addAll(actions);
-        return ret;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visitAll(actions);
     }
 
     public FunctionActionItem() {
@@ -412,4 +411,10 @@ public class FunctionActionItem extends ActionItem {
     public boolean hasReturnValue() {
         return false; //function actually returns itself, but here is false for generator to not add Pop
     }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true; //??
+    }
+    //What about hashcode and equals? Probably not.
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.action.Action;
@@ -56,7 +57,7 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
             SWF swf = new SWF();
             ASMSource asm = new DoActionTag(swf);
 
-            ActionScript2Parser par = new ActionScript2Parser(swf.version);
+            ActionScript2Parser par = new ActionScript2Parser(swf, asm);
             try {
                 asm.setActions(par.actionsFromString(sourceAsToCompile));
             } catch (ActionParseException | CompilationException ex) {

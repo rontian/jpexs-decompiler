@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.EndOfStreamException;
@@ -239,7 +240,7 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
         super(swf, ID, NAME, null);
     }
 
-    public PlaceObject3Tag(SWF swf, boolean placeFlagMove, int depth, String className, int characterId, MATRIX matrix, CXFORMWITHALPHA colorTransform, int ratio, String name, int clipDepth, List<FILTER> surfaceFilterList, int blendMode, Integer bitmapCache, int visible, RGBA backgroundColor, CLIPACTIONS clipActions) {
+    public PlaceObject3Tag(SWF swf, boolean placeFlagMove, int depth, String className, int characterId, MATRIX matrix, CXFORMWITHALPHA colorTransform, int ratio, String name, int clipDepth, List<FILTER> surfaceFilterList, int blendMode, Integer bitmapCache, int visible, RGBA backgroundColor, CLIPACTIONS clipActions, boolean placeFlagHasImage) {
         super(swf, ID, NAME, null);
         this.placeFlagHasClassName = className != null;
         this.placeFlagHasFilterList = surfaceFilterList != null;
@@ -269,6 +270,7 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
         this.visible = visible;
         this.backgroundColor = backgroundColor;
         this.clipActions = clipActions;
+        this.placeFlagHasImage = placeFlagHasImage;
     }
 
     /**
@@ -641,4 +643,25 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
         }
         return null;
     }
+
+    @Override
+    public void setClipActions(CLIPACTIONS clipActions) {
+        this.clipActions = clipActions;
+    }
+
+    @Override
+    public void setPlaceFlagHasClipActions(boolean placeFlagHasClipActions) {
+        this.placeFlagHasClipActions = placeFlagHasClipActions;
+    }
+
+    @Override
+    public void setPlaceFlagHasMatrix(boolean placeFlagHasMatrix) {
+        this.placeFlagHasMatrix = placeFlagHasMatrix;
+    }
+
+    @Override
+    public boolean hasImage() {
+        return placeFlagHasImage;
+    }
+
 }

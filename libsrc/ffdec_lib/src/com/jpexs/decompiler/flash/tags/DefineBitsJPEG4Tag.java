@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -27,6 +28,7 @@ import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.JpegFixer;
 import com.jpexs.helpers.SerializableImage;
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
@@ -178,7 +180,15 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
     @Override
     public InputStream getOriginalImageData() {
         if (bitmapAlphaData.getLength() == 0) { // No alpha
-            return new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength());
+
+            JpegFixer jpegFixer = new JpegFixer();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try {
+                jpegFixer.fixJpeg(new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength()), baos);
+            } catch (IOException ex) {
+                Logger.getLogger(DefineBitsJPEG4Tag.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            return new ByteArrayInputStream(baos.toByteArray());
         }
 
         return null;
@@ -187,7 +197,14 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
     @Override
     protected SerializableImage getImage() {
         try {
-            BufferedImage image = ImageHelper.read(new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength()));
+            JpegFixer jpegFixer = new JpegFixer();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try {
+                jpegFixer.fixJpeg(new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength()), baos);
+            } catch (IOException ex) {
+                Logger.getLogger(DefineBitsJPEG3Tag.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            BufferedImage image = ImageHelper.read(new ByteArrayInputStream(baos.toByteArray()));
             if (image == null) {
                 Logger.getLogger(DefineBitsJPEG4Tag.class.getName()).log(Level.SEVERE, "Failed to load image");
                 return null;
@@ -205,12 +222,28 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
 
             int width = img.getWidth();
             int height = img.getHeight();
-            SerializableImage img2 = new SerializableImage(width, height, SerializableImage.TYPE_INT_ARGB_PRE);
+            SerializableImage img2 = new SerializableImage(width, height, SerializableImage.TYPE_INT_ARGB);
             int[] pixels = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
             int[] pixels2 = ((DataBufferInt) img2.getRaster().getDataBuffer()).getData();
             for (int i = 0; i < pixels.length; i++) {
                 int a = alphaData[i] & 0xff;
-                pixels2[i] = (pixels[i] & 0xffffff) | (a << 24);
+                int b = (pixels[i] >> 16) & 0xff;
+                int g = (pixels[i] >> 8) & 0xff;
+                int r = (pixels[i]) & 0xff;
+                r = (int) Math.floor(r * 255.0 / a);
+                g = (int) Math.floor(g * 255.0 / a);
+                b = (int) Math.floor(b * 255.0 / a);
+                if (r > 255) {
+                    r = 255;
+                }
+                if (g > 255) {
+                    g = 255;
+                }
+                if (b > 255) {
+                    b = 255;
+                }
+
+                pixels2[i] = (a << 24) | (b << 16) | (g << 8) | r;
             }
 
             return img2;

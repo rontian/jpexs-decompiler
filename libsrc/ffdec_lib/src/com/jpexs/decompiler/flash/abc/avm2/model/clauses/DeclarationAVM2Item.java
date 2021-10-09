@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model.clauses;
 
 import com.jpexs.decompiler.flash.abc.avm2.model.AVM2Item;
@@ -26,6 +27,7 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 
@@ -39,10 +41,18 @@ public class DeclarationAVM2Item extends AVM2Item {
 
     public GraphTargetItem type;
 
+    public boolean showValue = true;
+
     public DeclarationAVM2Item(GraphTargetItem assignment, GraphTargetItem type) {
         super(assignment.getSrc(), assignment.getLineStartItem(), assignment.getPrecedence());
         this.type = type;
         this.assignment = assignment;
+    }
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(type);
+        visitor.visit(assignment);
     }
 
     public DeclarationAVM2Item(GraphTargetItem assignment) {
@@ -101,8 +111,11 @@ public class DeclarationAVM2Item extends AVM2Item {
             writer.append(localName);
             writer.append(":");
             type.appendTry(writer, localData);
-            writer.append(" = ");
-            return val.toString(writer, localData);
+            if (showValue) {
+                writer.append(" = ");
+                val.toString(writer, localData);
+            }
+            return writer;
         }
         if (assignment instanceof SetSlotAVM2Item) {
             SetSlotAVM2Item ssti = (SetSlotAVM2Item) assignment;
@@ -129,8 +142,11 @@ public class DeclarationAVM2Item extends AVM2Item {
             writer.append(":");
 
             type.appendTry(writer, localData);
-            writer.append(" = ");
-            return val.toString(writer, localData);
+            if (showValue) {
+                writer.append(" = ");
+                val.toString(writer, localData);
+            }
+            return writer;
         }
         writer.append("var ");
         return assignment.toString(writer, localData);

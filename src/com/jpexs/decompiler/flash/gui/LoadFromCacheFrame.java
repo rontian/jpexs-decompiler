@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -45,7 +45,6 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
-import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
 import javax.swing.filechooser.FileFilter;
@@ -105,7 +104,7 @@ public class LoadFromCacheFrame extends AppFrame {
         });
         cnt.setLayout(new BorderLayout());
         cnt.add(searchField, BorderLayout.NORTH);
-        cnt.add(new JScrollPane(list), BorderLayout.CENTER);
+        cnt.add(new FasterScrollPane(list), BorderLayout.CENTER);
 
         JPanel bottomPanel = new JPanel();
         bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
@@ -263,9 +262,7 @@ public class LoadFromCacheFrame extends AppFrame {
                 });
             }
             fc.setAcceptAllFileFilterUsed(false);
-            JFrame f = new JFrame();
-            View.setWindowIcon(f);
-            if (fc.showSaveDialog(f) == JFileChooser.APPROVE_OPTION) {
+            if (fc.showSaveDialog(LoadFromCacheFrame.this) == JFileChooser.APPROVE_OPTION) {
                 File file = Helper.fixDialogFile(fc.getSelectedFile());
                 try {
                     if (selected.size() == 1) {
@@ -277,7 +274,7 @@ public class LoadFromCacheFrame extends AppFrame {
                     }
                     Configuration.lastSaveDir.set(file.getParentFile().getAbsolutePath());
                 } catch (IOException ex) {
-                    View.showMessageDialog(null, translate("error.file.write"));
+                    ViewMessages.showMessageDialog(this, translate("error.file.write"));
                 }
             }
         }

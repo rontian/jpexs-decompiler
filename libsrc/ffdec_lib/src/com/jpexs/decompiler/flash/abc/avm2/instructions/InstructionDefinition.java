@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,21 +29,31 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.localregs.IncLocalIIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.localregs.IncLocalIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.localregs.SetLocalTypeIns;
 import com.jpexs.decompiler.flash.abc.avm2.model.AVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.ClassAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.FindPropertyAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.FullMultinameAVM2Item;
-import com.jpexs.helpers.Reference;
+import com.jpexs.decompiler.flash.abc.avm2.model.GlobalAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.NewActivationAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.ThisAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.clauses.ExceptionAVM2Item;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
+import com.jpexs.decompiler.flash.abc.types.traits.Trait;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitWithSlot;
+import com.jpexs.decompiler.flash.abc.types.traits.Traits;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.ScopeStack;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.helpers.Reference;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 
@@ -160,7 +170,7 @@ public abstract class InstructionDefinition implements Serializable {
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) throws InterruptedException {
     }
 
-    public void translate(Reference<GraphSourceItem> lineStartItem, boolean isStatic, int scriptIndex, int classIndex, HashMap<Integer, GraphTargetItem> localRegs, TranslateStack stack, ScopeStack scopeStack, AVM2Instruction ins, List<GraphTargetItem> output, MethodBody body, ABC abc, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames, String path, HashMap<Integer, Integer> localRegsAssignmentIps, int ip, HashMap<Integer, List<Integer>> refs, AVM2Code code, boolean thisHasDefaultToPrimitive) throws InterruptedException {
+    public void translate(Map<Integer, Set<Integer>> setLocalPosToGetLocalPos, Reference<GraphSourceItem> lineStartItem, boolean isStatic, int scriptIndex, int classIndex, HashMap<Integer, GraphTargetItem> localRegs, TranslateStack stack, ScopeStack scopeStack, AVM2Instruction ins, List<GraphTargetItem> output, MethodBody body, ABC abc, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames, String path, HashMap<Integer, Integer> localRegsAssignmentIps, int ip, HashMap<Integer, List<Integer>> refs, AVM2Code code, boolean thisHasDefaultToPrimitive) throws InterruptedException {
         AVM2LocalData localData = new AVM2LocalData();
         localData.isStatic = isStatic;
         localData.scriptIndex = scriptIndex;
@@ -177,6 +187,7 @@ public abstract class InstructionDefinition implements Serializable {
         localData.refs = refs;
         localData.code = code;
         localData.thisHasDefaultToPrimitive = thisHasDefaultToPrimitive;
+        localData.setLocalPosToGetLocalPos = setLocalPosToGetLocalPos;
         translate(localData, stack, ins, output, path);
         lineStartItem.setVal(localData.lineStartInstruction);
     }
@@ -306,5 +317,61 @@ public abstract class InstructionDefinition implements Serializable {
 
     public boolean isExitInstruction() {
         return false;
+    }
+
+    public static int getItemIp(AVM2LocalData localData, GraphTargetItem item) {
+        GraphSourceItem src = item.getSrc();
+        if (src == null) {
+            return -1;
+        }
+        return localData.code.adr2pos(src.getAddress());
+    }
+
+    protected static Multiname searchSlotName(int slotIndex, AVM2LocalData localData, GraphTargetItem obj, Reference<GraphTargetItem> realObj) {
+        return searchSlotName(slotIndex, localData, obj, -1, realObj);
+    }
+
+    private static Multiname searchSlotName(int slotIndex, AVM2LocalData localData, GraphTargetItem obj, int multiNameIndex, Reference<GraphTargetItem> realObj) {
+        if ((obj instanceof ExceptionAVM2Item) && (multiNameIndex == -1 || ((ExceptionAVM2Item) obj).exception.name_index == multiNameIndex)) {
+            return localData.getConstants().getMultiname(((ExceptionAVM2Item) obj).exception.name_index);
+        }
+
+        if (obj instanceof FindPropertyAVM2Item) {
+            FindPropertyAVM2Item findProp = (FindPropertyAVM2Item) obj;
+
+            for (GraphTargetItem item : localData.scopeStack) {
+                Multiname ret = searchSlotName(slotIndex, localData, item, ((FullMultinameAVM2Item) findProp.propertyName).multinameIndex, realObj);
+                if (ret != null) {
+                    return ret;
+                }
+            }
+            return null;
+        }
+
+        Traits traits = null;
+        if (obj instanceof NewActivationAVM2Item) {
+            traits = localData.methodBody.traits;
+        } else if (obj instanceof ThisAVM2Item) {
+            traits = localData.abc.instance_info.get(localData.classIndex).instance_traits;
+        } else if (obj instanceof ClassAVM2Item) {
+            traits = localData.abc.class_info.get(localData.classIndex).static_traits;
+        } else if (obj instanceof GlobalAVM2Item) {
+            traits = localData.abc.script_info.get(localData.scriptIndex).traits;
+        }
+        if (traits != null) {
+            for (int t = 0; t < traits.traits.size(); t++) {
+                Trait trait = traits.traits.get(t);
+                if (trait instanceof TraitWithSlot) {
+                    if (multiNameIndex == -1 || trait.name_index == multiNameIndex) {
+                        if (((TraitWithSlot) trait).getSlotIndex() == slotIndex) {
+                            realObj.setVal(obj);
+                            return trait.getName(localData.abc);
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 }

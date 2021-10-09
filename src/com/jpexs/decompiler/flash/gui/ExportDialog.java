@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -51,6 +51,7 @@ import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.util.Arrays;
 import java.util.List;
@@ -199,7 +200,8 @@ public class ExportDialog extends AppDialog {
         return false;
     }
 
-    public ExportDialog(List<TreeItem> exportables) {
+    public ExportDialog(Window owner, List<TreeItem> exportables) {
+        super(owner);
         setTitle(translate("dialog.title"));
         setResizable(false);
 

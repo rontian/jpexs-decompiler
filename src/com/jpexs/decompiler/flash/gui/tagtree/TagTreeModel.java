@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -231,6 +231,7 @@ public class TagTreeModel implements TreeModel {
                     binaryData.add(t);
                     break;
                 case AS:
+                case AS_FRAME:
                     break;
                 default:
                     if (t.getId() != ShowFrameTag.ID && !ShowFrameTag.isNestedTagType(t.getId())) {
@@ -561,6 +562,9 @@ public class TagTreeModel implements TreeModel {
 
     @Override
     public TreeItem getChild(Object parent, int index) {
+        if(getChildCount(parent) == 0) {
+            return null;
+        }
         TreeItem parentNode = (TreeItem) parent;
 
         if (parentNode instanceof CharacterTag) {

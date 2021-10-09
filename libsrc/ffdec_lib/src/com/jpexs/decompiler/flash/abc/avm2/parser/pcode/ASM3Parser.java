@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.parser.pcode;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -37,6 +38,7 @@ import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitFunction;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
+import com.jpexs.decompiler.flash.abc.types.traits.Traits;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.helpers.Helper;
 import java.io.IOException;
@@ -48,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Stack;
 
 /**
  *
@@ -63,17 +66,20 @@ public class ASM3Parser {
 
         public int insOperandIndex;
 
-        public OffsetItem(String label, long insOffset, int insOperandIndex) {
+        public int line;
+
+        public OffsetItem(String label, long insOffset, int insOperandIndex, int line) {
             this.label = label;
             this.insPosition = insOffset;
             this.insOperandIndex = insOperandIndex;
+            this.line = line;
         }
     }
 
     private static class CaseOffsetItem extends OffsetItem {
 
-        public CaseOffsetItem(String label, long insOffset, int insOperandIndex) {
-            super(label, insOffset, insOperandIndex);
+        public CaseOffsetItem(String label, long insOffset, int insOperandIndex, int line) {
+            super(label, insOffset, insOperandIndex, line);
         }
     }
 
@@ -87,6 +93,12 @@ public class ASM3Parser {
             this.label = label;
             this.offset = offset;
         }
+
+        @Override
+        public String toString() {
+            return label + " at address " + offset;
+        }
+
     }
 
     public static AVM2Code parse(ABC abc, Reader reader, Trait trait, MethodBody body, MethodInfo info) throws IOException, AVM2ParseException, InterruptedException {
@@ -190,8 +202,7 @@ public class ASM3Parser {
 
     }
 
-    public static boolean parseSlotConst(ABC abc, Reader reader, AVM2ConstantPool constants, TraitSlotConst tsc) throws IOException, AVM2ParseException {
-        Flasm3Lexer lexer = new Flasm3Lexer(reader);
+    private static boolean parseSlotConst(ABC abc, Flasm3Lexer lexer, AVM2ConstantPool constants, TraitSlotConst tsc) throws IOException, AVM2ParseException {
         expected(ParsedSymbol.TYPE_KEYWORD_TRAIT, "trait", lexer);
         ParsedSymbol symb = lexer.lex();
         if (symb.type == ParsedSymbol.TYPE_KEYWORD_SLOT) {
@@ -210,14 +221,24 @@ public class ASM3Parser {
         int slotid = (int) (long) (Long) symb.value;
         expected(ParsedSymbol.TYPE_KEYWORD_TYPE, "type", lexer);
         int type = parseMultiName(constants, lexer);
-        expected(ParsedSymbol.TYPE_KEYWORD_VALUE, "value", lexer);
-        ValueKind val = parseValue(constants, lexer);
+        symb = lexer.lex();
+        if (symb.type == ParsedSymbol.TYPE_KEYWORD_VALUE) {
+            ValueKind val = parseValue(constants, lexer);
+            tsc.value_kind = val.value_kind;
+            tsc.value_index = val.value_index;
+        } else {
+            tsc.value_kind = ValueKind.CONSTANT_Undefined;
+            tsc.value_index = 0;
+        }
         tsc.slot_id = slotid;
         tsc.type_index = type;
-        tsc.value_kind = val.value_kind;
-        tsc.value_index = val.value_index;
         tsc.name_index = name_index;
         return true;
+    }
+
+    public static boolean parseSlotConst(ABC abc, Reader reader, AVM2ConstantPool constants, TraitSlotConst tsc) throws IOException, AVM2ParseException {
+        Flasm3Lexer lexer = new Flasm3Lexer(reader);
+        return parseSlotConst(abc, lexer, constants, tsc);
     }
 
     private static int parseNamespaceSet(AVM2ConstantPool constants, Flasm3Lexer lexer) throws AVM2ParseException, IOException {
@@ -450,6 +471,7 @@ public class ASM3Parser {
     public static ValueKind parseValue(AVM2ConstantPool constants, Flasm3Lexer lexer) throws IOException, AVM2ParseException {
         ParsedSymbol type = lexer.lex();
         ParsedSymbol value;
+        ParsedSymbol temp;
         int value_index = 0;
         int value_kind = 0;
         switch (type.type) {
@@ -519,12 +541,43 @@ public class ASM3Parser {
                 break;
             case ParsedSymbol.TYPE_KEYWORD_TRUE:
                 value_kind = ValueKind.CONSTANT_True;
+                value_index = ValueKind.CONSTANT_True;
+                temp = lexer.lex();
+                if (temp.type == ParsedSymbol.TYPE_PARENT_OPEN) {
+                    expected(ParsedSymbol.TYPE_PARENT_CLOSE, ")", lexer);
+                } else {
+                    lexer.pushback(temp);
+                }
                 break;
             case ParsedSymbol.TYPE_KEYWORD_FALSE:
                 value_kind = ValueKind.CONSTANT_False;
+                value_index = ValueKind.CONSTANT_False;
+                temp = lexer.lex();
+                if (temp.type == ParsedSymbol.TYPE_PARENT_OPEN) {
+                    expected(ParsedSymbol.TYPE_PARENT_CLOSE, ")", lexer);
+                } else {
+                    lexer.pushback(temp);
+                }
                 break;
             case ParsedSymbol.TYPE_KEYWORD_NULL:
                 value_kind = ValueKind.CONSTANT_Null;
+                value_index = ValueKind.CONSTANT_Null;
+                temp = lexer.lex();
+                if (temp.type == ParsedSymbol.TYPE_PARENT_OPEN) {
+                    expected(ParsedSymbol.TYPE_PARENT_CLOSE, ")", lexer);
+                } else {
+                    lexer.pushback(temp);
+                }
+                break;
+            case ParsedSymbol.TYPE_KEYWORD_VOID:
+                value_kind = ValueKind.CONSTANT_Undefined;
+                value_index = ValueKind.CONSTANT_Undefined;
+                temp = lexer.lex();
+                if (temp.type == ParsedSymbol.TYPE_PARENT_OPEN) {
+                    expected(ParsedSymbol.TYPE_PARENT_CLOSE, ")", lexer);
+                } else {
+                    lexer.pushback(temp);
+                }
                 break;
             case ParsedSymbol.TYPE_KEYWORD_NAMESPACE:
             case ParsedSymbol.TYPE_KEYWORD_PACKAGEINTERNALNS:
@@ -571,10 +624,9 @@ public class ASM3Parser {
     public static AVM2Code parse(ABC abc, Reader reader, Trait trait, MissingSymbolHandler missingHandler, MethodBody body, MethodInfo info) throws IOException, AVM2ParseException, InterruptedException {
         AVM2ConstantPool constants = abc.constants;
         AVM2Code code = new AVM2Code();
-        int openedBlocks = 0;
         boolean autoCloseBlocks = true; //TODO? Put to false. But how about old imports?
         List<OffsetItem> offsetItems = new ArrayList<>();
-        List<LabelItem> labelItems = new ArrayList<>();
+        Map<String, Integer> labelToOffset = new HashMap<>();
         List<ABCException> exceptions = new ArrayList<>();
         List<Integer> exceptionIndices = new ArrayList<>();
         int offset = 0;
@@ -586,59 +638,68 @@ public class ASM3Parser {
         List<String> exceptionsFrom = new ArrayList<>();
         List<String> exceptionsTo = new ArrayList<>();
         List<String> exceptionsTargets = new ArrayList<>();
+        List<Integer> exceptionLines = new ArrayList<>();
         info.flags = 0;
         info.name_index = 0;
         List<Integer> paramTypes = new ArrayList<>();
         List<Integer> paramNames = new ArrayList<>();
         List<ValueKind> optional = new ArrayList<>();
+        Stack<Integer> blockStack = new Stack<>();
+        body.traits = new Traits();
         do {
             symb = lexer.lex();
             if (Arrays.asList(ParsedSymbol.TYPE_KEYWORD_BODY, ParsedSymbol.TYPE_KEYWORD_CODE, ParsedSymbol.TYPE_KEYWORD_METHOD).contains(symb.type)) {
-                openedBlocks++;
+                blockStack.push(symb.type);
                 continue;
             }
             if (symb.type == ParsedSymbol.TYPE_KEYWORD_TRAIT) {
-                openedBlocks++;
-                if (trait == null) {
-                    throw new AVM2ParseException("No trait expected", lexer.yyline());
-                }
-                symb = lexer.lex();
-                switch (symb.type) {
-                    case ParsedSymbol.TYPE_KEYWORD_METHOD:
-                    case ParsedSymbol.TYPE_KEYWORD_GETTER:
-                    case ParsedSymbol.TYPE_KEYWORD_SETTER:
-                        if (!(trait instanceof TraitMethodGetterSetter)) {
-                            throw new AVM2ParseException("Unxpected trait type", lexer.yyline());
-                        }
-                        TraitMethodGetterSetter tm = (TraitMethodGetterSetter) trait;
-                        switch (symb.type) {
-                            case ParsedSymbol.TYPE_KEYWORD_METHOD:
-                                tm.kindType = Trait.TRAIT_METHOD;
-                                break;
-                            case ParsedSymbol.TYPE_KEYWORD_GETTER:
-                                tm.kindType = Trait.TRAIT_GETTER;
-                                break;
-                            case ParsedSymbol.TYPE_KEYWORD_SETTER:
-                                tm.kindType = Trait.TRAIT_SETTER;
-                                break;
-                        }
-                        tm.name_index = parseMultiName(constants, lexer);
-                        parseTraitParams(abc, lexer, trait);
-                        expected(ParsedSymbol.TYPE_KEYWORD_DISPID, "dispid", lexer);
-                        symb = lexer.lex();
-                        expected(symb, ParsedSymbol.TYPE_INTEGER, "Integer");
-                        tm.disp_id = (int) (long) (Long) symb.value;
+                blockStack.push(symb.type);
+                if (blockStack.contains(ParsedSymbol.TYPE_KEYWORD_BODY)) {
+                    lexer.pushback(symb);
+                    TraitSlotConst tsc = new TraitSlotConst();
+                    parseSlotConst(abc, lexer, constants, tsc);
+                    body.traits.addTrait(tsc);
+                } else {
+                    if (trait == null) {
+                        throw new AVM2ParseException("No trait expected", lexer.yyline());
+                    }
+                    symb = lexer.lex();
+                    switch (symb.type) {
+                        case ParsedSymbol.TYPE_KEYWORD_METHOD:
+                        case ParsedSymbol.TYPE_KEYWORD_GETTER:
+                        case ParsedSymbol.TYPE_KEYWORD_SETTER:
+                            if (!(trait instanceof TraitMethodGetterSetter)) {
+                                throw new AVM2ParseException("Unxpected trait type", lexer.yyline());
+                            }
+                            TraitMethodGetterSetter tm = (TraitMethodGetterSetter) trait;
+                            switch (symb.type) {
+                                case ParsedSymbol.TYPE_KEYWORD_METHOD:
+                                    tm.kindType = Trait.TRAIT_METHOD;
+                                    break;
+                                case ParsedSymbol.TYPE_KEYWORD_GETTER:
+                                    tm.kindType = Trait.TRAIT_GETTER;
+                                    break;
+                                case ParsedSymbol.TYPE_KEYWORD_SETTER:
+                                    tm.kindType = Trait.TRAIT_SETTER;
+                                    break;
+                            }
+                            tm.name_index = parseMultiName(constants, lexer);
+                            parseTraitParams(abc, lexer, trait);
+                            expected(ParsedSymbol.TYPE_KEYWORD_DISPID, "dispid", lexer);
+                            symb = lexer.lex();
+                            expected(symb, ParsedSymbol.TYPE_INTEGER, "Integer");
+                            tm.disp_id = (int) (long) (Long) symb.value;
 
-                        break;
-                    case ParsedSymbol.TYPE_KEYWORD_FUNCTION:
-                        if (!(trait instanceof TraitFunction)) {
-                            throw new AVM2ParseException("Unxpected trait type", lexer.yyline());
-                        }
+                            break;
+                        case ParsedSymbol.TYPE_KEYWORD_FUNCTION:
+                            if (!(trait instanceof TraitFunction)) {
+                                throw new AVM2ParseException("Unxpected trait type", lexer.yyline());
+                            }
 
-                        //NAME
-                        parseTraitParams(abc, lexer, trait);
-                        break;
-
+                            //NAME
+                            parseTraitParams(abc, lexer, trait);
+                            break;
+                    }
                 }
                 continue;
             }
@@ -736,6 +797,7 @@ public class ASM3Parser {
                 continue;
             }
             if (symb.type == ParsedSymbol.TYPE_KEYWORD_TRY) {
+                exceptionLines.add(lexer.yyline());
                 expected(ParsedSymbol.TYPE_KEYWORD_FROM, "From", lexer);
                 symb = lexer.lex();
                 expected(symb, ParsedSymbol.TYPE_IDENTIFIER, "Identifier");
@@ -754,6 +816,10 @@ public class ASM3Parser {
                 expected(ParsedSymbol.TYPE_KEYWORD_NAME, "Name", lexer);
                 ex.name_index = parseMultiName(constants, lexer);
                 exceptions.add(ex);
+                symb = lexer.lex();
+                if (symb.type != ParsedSymbol.TYPE_KEYWORD_END) {
+                    lexer.pushback(symb);
+                }
                 continue;
             }
             if (symb.type == ParsedSymbol.TYPE_EXCEPTION_START) {
@@ -787,17 +853,16 @@ public class ASM3Parser {
                 break;
             }
             if (symb.type == ParsedSymbol.TYPE_COMMENT) {
-                if (lastIns != null) {
+                if (lastIns != null && blockStack.contains(ParsedSymbol.TYPE_KEYWORD_CODE)) {
                     lastIns.comment = (String) symb.value;
                 }
                 continue;
             }
             if (symb.type == ParsedSymbol.TYPE_KEYWORD_END) {
-                if (openedBlocks > 0) {
-                    openedBlocks--;
-                } else {
+                if (blockStack.isEmpty()) {
                     throw new AVM2ParseException("End block encountered but there is no block opened", lexer.yyline());
                 }
+                blockStack.pop();
                 continue;
             }
             if (symb.type == ParsedSymbol.TYPE_INSTRUCTION_NAME) {
@@ -822,14 +887,23 @@ public class ASM3Parser {
                     exceptionIndices.add((int) (long) (Long) exIndex.value);
                     continue;
                 }
+                String insName = (String) symb.value;
+                if (AVM2Code.instructionAliases.containsKey(insName)) {
+                    insName = AVM2Code.instructionAliases.get(insName); //search original unaliased name
+                }
                 boolean insFound = false;
                 for (InstructionDefinition def : AVM2Code.instructionSet) {
-                    if (def != null && !(def instanceof UnknownInstruction) && def.instructionName.equals((String) symb.value)) {
+                    if (def != null && !(def instanceof UnknownInstruction) && def.instructionName.equals(insName)) {
                         insFound = true;
                         List<Integer> operandsList = new ArrayList<>();
 
                         for (int i = 0; i < def.operands.length; i++) {
                             ParsedSymbol parsedOperand = lexer.lex();
+                            if (i > 0) {
+                                if (parsedOperand.type == ParsedSymbol.TYPE_COMMA) {
+                                    parsedOperand = lexer.lex();
+                                }
+                            }
                             switch (def.operands[i]) {
                                 case AVM2Code.DAT_MULTINAME_INDEX:
                                     lexer.pushback(parsedOperand);
@@ -979,7 +1053,7 @@ public class ASM3Parser {
                                     break;
                                 case AVM2Code.DAT_OFFSET:
                                     if (parsedOperand.type == ParsedSymbol.TYPE_IDENTIFIER) {
-                                        offsetItems.add(new OffsetItem((String) parsedOperand.value, code.code.size(), i));
+                                        offsetItems.add(new OffsetItem((String) parsedOperand.value, code.code.size(), i, lexer.yyline()));
                                         operandsList.add(0);
                                     } else {
                                         throw new AVM2ParseException("Offset expected", lexer.yyline());
@@ -987,7 +1061,7 @@ public class ASM3Parser {
                                     break;
                                 case AVM2Code.DAT_CASE_BASEOFFSET:
                                     if (parsedOperand.type == ParsedSymbol.TYPE_IDENTIFIER) {
-                                        offsetItems.add(new CaseOffsetItem((String) parsedOperand.value, code.code.size(), i));
+                                        offsetItems.add(new CaseOffsetItem((String) parsedOperand.value, code.code.size(), i, lexer.yyline()));
                                         operandsList.add(0);
                                     } else {
                                         throw new AVM2ParseException("Offset expected", lexer.yyline());
@@ -995,21 +1069,50 @@ public class ASM3Parser {
                                     break;
                                 case AVM2Code.OPT_CASE_OFFSETS:
 
-                                    if (parsedOperand.type == ParsedSymbol.TYPE_INTEGER) {
+                                    if (parsedOperand.type == ParsedSymbol.TYPE_BRACKET_OPEN) {
+                                        parsedOperand = lexer.lex();
+
+                                        int c = 0;
+                                        while (parsedOperand.type == ParsedSymbol.TYPE_IDENTIFIER) {
+                                            offsetItems.add(new CaseOffsetItem((String) parsedOperand.value, code.code.size(), i + (c + 1), lexer.yyline()));
+                                            c++;
+                                            parsedOperand = lexer.lex();
+                                            if (parsedOperand.type == ParsedSymbol.TYPE_BRACKET_CLOSE) {
+                                                break;
+                                            }
+                                            if (parsedOperand.type == ParsedSymbol.TYPE_COMMA) {
+                                                parsedOperand = lexer.lex();
+                                            }
+                                        }
+                                        if (parsedOperand.type != ParsedSymbol.TYPE_BRACKET_CLOSE) {
+                                            throw new AVM2ParseException("Bracket close ] expected", lexer.yyline());
+                                        }
+                                        if (c == 0) {
+                                            throw new AVM2ParseException("At least single offset expected", lexer.yyline());
+                                        }
+
+                                        operandsList.add(c - 1);
+                                        for (int d = 0; d < c; d++) {
+                                            operandsList.add(0);
+                                        }
+                                    } else if (parsedOperand.type == ParsedSymbol.TYPE_INTEGER) { //old syntax
                                         int patCount = (int) (long) (Long) parsedOperand.value;
                                         operandsList.add(patCount);
 
                                         for (int c = 0; c <= patCount; c++) {
                                             parsedOperand = lexer.lex();
+                                            if (parsedOperand.type == ParsedSymbol.TYPE_COMMA) {
+                                                parsedOperand = lexer.lex();
+                                            }
                                             if (parsedOperand.type == ParsedSymbol.TYPE_IDENTIFIER) {
-                                                offsetItems.add(new CaseOffsetItem((String) parsedOperand.value, code.code.size(), i + (c + 1)));
+                                                offsetItems.add(new CaseOffsetItem((String) parsedOperand.value, code.code.size(), i + (c + 1), lexer.yyline()));
                                                 operandsList.add(0);
                                             } else {
                                                 throw new AVM2ParseException("Offset expected", lexer.yyline());
                                             }
                                         }
                                     } else {
-                                        throw new AVM2ParseException("Case count expected", lexer.yyline());
+                                        throw new AVM2ParseException("Bracket open [ or case count expected", lexer.yyline());
                                     }
                                     break;
                                 case AVM2Code.OPT_S8:
@@ -1058,52 +1161,52 @@ public class ASM3Parser {
                     throw new AVM2ParseException("Invalid instruction name:" + (String) symb.value, lexer.yyline());
                 }
             } else if (symb.type == ParsedSymbol.TYPE_LABEL) {
-                labelItems.add(new LabelItem((String) symb.value, offset));
+                labelToOffset.put((String) symb.value, offset);
 
             } else {
                 throw new AVM2ParseException("Unexpected symbol", lexer.yyline());
             }
         } while (symb.type != ParsedSymbol.TYPE_EOF);
 
-        if (!autoCloseBlocks && openedBlocks > 0) {
-            throw new AVM2ParseException("End of the block expected: " + openedBlocks + "x", lexer.yyline());
+        if (!autoCloseBlocks && !blockStack.isEmpty()) {
+            throw new AVM2ParseException("End of the block expected: " + blockStack.size() + "x", lexer.yyline());
         }
 
         code.compact();
-        for (LabelItem li : labelItems) {
-            int ind;
-            ind = exceptionsFrom.indexOf(li.label);
-            if (ind > -1) {
-                exceptions.get(ind).start = li.offset;
-            }
 
-            ind = exceptionsTo.indexOf(li.label);
-            if (ind > -1) {
-                exceptions.get(ind).end = li.offset;
+        for (int i = 0; i < exceptions.size(); i++) {
+            if (!labelToOffset.containsKey(exceptionsFrom.get(i))) {
+                throw new AVM2ParseException("Label " + exceptionsFrom.get(i) + " for exception from not defined", exceptionLines.get(i));
             }
+            exceptions.get(i).start = labelToOffset.get(exceptionsFrom.get(i));
 
-            ind = exceptionsTargets.indexOf(li.label);
-            if (ind > -1) {
-                exceptions.get(ind).target = li.offset;
+            if (!labelToOffset.containsKey(exceptionsTo.get(i))) {
+                throw new AVM2ParseException("Label " + exceptionsTo.get(i) + " for exception to not defined", exceptionLines.get(i));
             }
+            exceptions.get(i).end = labelToOffset.get(exceptionsTo.get(i));
+
+            if (!labelToOffset.containsKey(exceptionsTargets.get(i))) {
+                throw new AVM2ParseException("Label " + exceptionsTargets.get(i) + "for exception target not defined", exceptionLines.get(i));
+            }
+            exceptions.get(i).target = labelToOffset.get(exceptionsTargets.get(i));
         }
 
         for (OffsetItem oi : offsetItems) {
-            for (LabelItem li : labelItems) {
-                if (Thread.currentThread().isInterrupted()) {
-                    throw new InterruptedException();
-                }
-                if (oi.label.equals(li.label)) {
-                    AVM2Instruction ins = code.code.get((int) oi.insPosition);
-                    int relOffset;
-                    if (oi instanceof CaseOffsetItem) {
-                        relOffset = li.offset - (int) ins.getAddress();
-                    } else {
-                        relOffset = li.offset - ((int) ins.getAddress() + ins.getBytesLength());
-                    }
-                    ins.operands[oi.insOperandIndex] = relOffset;
-                }
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException();
             }
+            if (!labelToOffset.containsKey(oi.label)) {
+                throw new AVM2ParseException("Label " + oi.label + " not defined", oi.line);
+            }
+            int labelOffset = labelToOffset.get(oi.label);
+            AVM2Instruction ins = code.code.get((int) oi.insPosition);
+            int relOffset;
+            if (oi instanceof CaseOffsetItem) {
+                relOffset = labelOffset - (int) ins.getAddress();
+            } else {
+                relOffset = labelOffset - ((int) ins.getAddress() + ins.getBytesLength());
+            }
+            ins.operands[oi.insOperandIndex] = relOffset;
         }
         body.exceptions = new ABCException[exceptions.size()];
         for (int e = 0; e < exceptions.size(); e++) {

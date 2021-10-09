@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -46,10 +46,12 @@ public final class MainFrameClassic extends AppFrame implements MainFrame {
         FlashPlayerPanel flashPanel = null;
         FlashPlayerPanel flashPanel2 = null;
 
-        try {
-            flashPanel = new FlashPlayerPanel(this);
-            flashPanel2 = new FlashPlayerPanel(this);
-        } catch (FlashUnsupportedException fue) {
+        if (Configuration.useAdobeFlashPlayerForPreviews.get()) {
+            try {
+                flashPanel = new FlashPlayerPanel(this);
+                flashPanel2 = new FlashPlayerPanel(this);
+            } catch (FlashUnsupportedException fue) {
+            }
         }
 
         boolean externalFlashPlayerUnavailable = flashPanel == null;

@@ -128,18 +128,17 @@ The application was made in Czech republic.
 * **poxyran** - spanish translation
 * **realmaster42** - portugese-brasil translation
 * **Rtsjx** - chinese translation
+* **koiru** - japanese translation
 
 ## Contact
-### Issue Tracker
-For bug reporting and/or feature requests, our own Issue tracker exists :
-[https://www.free-decompiler.com/flash/issues](https://www.free-decompiler.com/flash/issues),
-but as of 2018/01, our support is *very limited*.
+You can use our Issue tracker to report bugs, but our support is VERY limited.
+[https://www.free-decompiler.com/flash/issues](https://www.free-decompiler.com/flash/issues)
+
+See [Frequently Asked Questions (FAQ) in wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/FAQ) before you try to contact me.
 
 ### Email contact
-**Please contact us via Issue Tracker (see above)**
-
-In case the tracker or *free-decompiler.com* domain is down,
-emergency contact to JPEXS developer is `jindra.petrik@gmail.com`.
+Emergency contact to JPEXS developer is `jindra.petrik@gmail.com`.
+But we prefer Issue tracker contact.
 
 ## Licenses + Acknowledgments
 ### Application

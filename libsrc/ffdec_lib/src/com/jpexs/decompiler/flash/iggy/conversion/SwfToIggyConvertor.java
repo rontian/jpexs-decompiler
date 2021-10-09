@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,7 +16,6 @@
 package com.jpexs.decompiler.flash.iggy.conversion;
 
 import com.jpexs.decompiler.flash.SWF;
-import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.iggy.IggyCharAdvances;
 import com.jpexs.decompiler.flash.iggy.IggyCharIndices;
 import com.jpexs.decompiler.flash.iggy.IggyCharKerning;

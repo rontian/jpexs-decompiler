@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -40,6 +40,7 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -161,7 +162,21 @@ public class ActionStoreRegister extends Action implements StoreTypeAction {
         if ((value instanceof EnumeratedValueActionItem)) {
             variables.put("__register" + registerNumber, new TemporaryRegister(registerNumber, new EnumerationAssignmentValueActionItem()));
         }
-        stack.push(new StoreRegisterActionItem(this, lineStartAction, rn, value, define));
+        StoreRegisterActionItem ret = new StoreRegisterActionItem(this, lineStartAction, rn, value, define);
+        if (value.getNotCoercedNoDup() instanceof CompoundableBinaryOp) {
+            CompoundableBinaryOp binaryOp = (CompoundableBinaryOp) value.getNotCoercedNoDup();
+            if (binaryOp.getLeftSide() instanceof DirectValueActionItem) {
+                DirectValueActionItem directValue = (DirectValueActionItem) binaryOp.getLeftSide();
+                if (directValue.value instanceof RegisterNumber) {
+                    if (((RegisterNumber) directValue.value).number == registerNumber) {
+                        ret.setCompoundValue(binaryOp.getRightSide());
+                        ret.setCompoundOperator(binaryOp.getOperator());
+                    }
+                }
+            }
+        }
+
+        stack.push(ret);
     }
 
     @Override

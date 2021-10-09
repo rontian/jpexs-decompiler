@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -34,6 +34,7 @@ import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.RenderContext;
 import com.jpexs.decompiler.flash.tags.base.ShapeTag;
 import com.jpexs.decompiler.flash.tags.enums.ImageFormat;
+import com.jpexs.decompiler.flash.timeline.Timeline;
 import com.jpexs.decompiler.flash.types.CXFORMWITHALPHA;
 import com.jpexs.decompiler.flash.types.RECT;
 import com.jpexs.decompiler.flash.types.RGB;
@@ -62,7 +63,7 @@ import java.util.logging.Logger;
  */
 public class ShapeExporter {
 
-    public List<File> exportShapes(AbortRetryIgnoreHandler handler, final String outdir, final SWF swf, ReadOnlyTagList tags, final ShapeExportSettings settings, EventListener evl) throws IOException, InterruptedException {
+    public List<File> exportShapes(AbortRetryIgnoreHandler handler, final String outdir, final SWF swf, ReadOnlyTagList tags, final ShapeExportSettings settings, EventListener evl, double unzoom) throws IOException, InterruptedException {
         List<File> ret = new ArrayList<>();
         if (tags.isEmpty()) {
             return ret;
@@ -122,7 +123,7 @@ public class ShapeExporter {
                             }
                             Matrix m = Matrix.getScaleInstance(settings.zoom);
                             m.translate(-rect.Xmin, -rect.Ymin);
-                            st.toImage(0, 0, 0, new RenderContext(), img, false, m, m, m, new CXFORMWITHALPHA());
+                            st.toImage(0, 0, 0, new RenderContext(), img, img, false, m, m, m, m, new CXFORMWITHALPHA(), unzoom, false, new ExportRectangle(rect), true, Timeline.DRAW_MODE_ALL);
                             if (settings.mode == ShapeExportMode.PNG) {
                                 ImageHelper.write(img.getBufferedImage(), ImageFormat.PNG, file);
                             } else {
@@ -140,14 +141,14 @@ public class ShapeExporter {
                                 needed.add(st.getCharacterId());
                                 st.getNeededCharactersDeep(needed);
                                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                                SWF.writeLibrary(st.getSwf(), needed, baos);
+                                SWF.libraryToHtmlCanvas(st.getSwf(), needed, baos);
                                 fos.write(Utf8Helper.getBytes(cse.getHtml(new String(baos.toByteArray(), Utf8Helper.charset), SWF.getTypePrefix(st) + st.getCharacterId(), st.getRect())));
                             }
                             break;
                         case SWF:
                             try (OutputStream fos = new BufferedOutputStream(new FileOutputStream(file))) {
                                 try {
-                                    new PreviewExporter().exportSwf(fos, st, null, 0);
+                                    new PreviewExporter().exportSwf(fos, st, null, 0, false);
                                 } catch (ActionParseException ex) {
                                     Logger.getLogger(MorphShapeExporter.class.getName()).log(Level.SEVERE, null, ex);
                                 }

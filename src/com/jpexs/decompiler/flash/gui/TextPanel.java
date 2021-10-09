@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -41,7 +41,6 @@ import java.util.logging.Logger;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 import javax.swing.text.BadLocationException;
 
@@ -99,7 +98,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
         topPanel.add(textSearchPanel);
         textValue = new LineMarkedEditorPane();
-        add(new JScrollPane(textValue), BorderLayout.CENTER);
+        add(new FasterScrollPane(textValue), BorderLayout.CENTER);
         textValue.setFont(Configuration.getSourceFont());
         textValue.changeContentType("text/swftext");
         textValue.addTextChangedListener(this::textChanged);

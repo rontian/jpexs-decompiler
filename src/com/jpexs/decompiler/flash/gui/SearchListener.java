@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,5 +23,5 @@ package com.jpexs.decompiler.flash.gui;
  */
 public interface SearchListener<E> {
 
-    public void updateSearchPos(E item);
+    public void updateSearchPos(String searchedText, boolean ignoreCase, boolean regExp, E item);
 }

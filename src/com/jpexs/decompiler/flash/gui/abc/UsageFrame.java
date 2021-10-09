@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ import com.jpexs.decompiler.flash.abc.usages.MethodMultinameUsage;
 import com.jpexs.decompiler.flash.abc.usages.MultinameUsage;
 import com.jpexs.decompiler.flash.abc.usages.TraitMultinameUsage;
 import com.jpexs.decompiler.flash.gui.AppDialog;
+import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.tags.ABCContainerTag;
 import java.awt.BorderLayout;
@@ -37,7 +38,6 @@ import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JList;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 
 /**
  *
@@ -66,8 +66,8 @@ public class UsageFrame extends AppDialog implements MouseListener {
                 if (a == abc) {
                     continue;
                 }
-                int mid = a.constants.getMultinameId(m, false);
-                if (mid > 0) {
+                List<Integer> mids = a.constants.getMultinameIds(m, abc.constants);
+                for (int mid : mids) {
                     usages.addAll(definitions ? a.findMultinameDefinition(mid) : a.findMultinameUsage(mid));
                 }
             }
@@ -89,7 +89,7 @@ public class UsageFrame extends AppDialog implements MouseListener {
         usageList.addMouseListener(this);
         Container cont = getContentPane();
         cont.setLayout(new BorderLayout());
-        cont.add(new JScrollPane(usageList), BorderLayout.CENTER);
+        cont.add(new FasterScrollPane(usageList), BorderLayout.CENTER);
         cont.add(buttonsPanel, BorderLayout.SOUTH);
         setSize(400, 300);
         setTitle((definitions ? translate("dialog.title.declaration") : translate("dialog.title")) + abc.constants.getMultiname(multinameIndex).getNameWithNamespace(abc.constants, true).toPrintableString(true));
@@ -104,7 +104,7 @@ public class UsageFrame extends AppDialog implements MouseListener {
             final InsideClassMultinameUsageInterface icu = (InsideClassMultinameUsageInterface) usage;
 
             DecompiledEditorPane decompiledTextArea = abcPanel.decompiledTextArea;
-            ABC abc = abcPanel.abc;
+            ABC newAbc = icu.getAbc();
             Runnable setTrait = new Runnable() {
                 @Override
                 public void run() {
@@ -119,12 +119,12 @@ public class UsageFrame extends AppDialog implements MouseListener {
                             traitIndex = tmu.getTraitIndex();
                         }
                         if (tmu.getTraitsType() == TraitMultinameUsage.TRAITS_TYPE_INSTANCE) {
-                            traitIndex += abc.class_info.get(tmu.getClassIndex()).static_traits.traits.size();
+                            traitIndex += newAbc.class_info.get(tmu.getClassIndex()).static_traits.traits.size();
                         }
                         if (tmu instanceof MethodMultinameUsage) {
                             MethodMultinameUsage mmu = (MethodMultinameUsage) usage;
                             if (mmu.isInitializer() == true) {
-                                traitIndex = abc.class_info.get(mmu.getClassIndex()).static_traits.traits.size() + abc.instance_info.get(mmu.getClassIndex()).instance_traits.traits.size() + (mmu.getTraitsType() == TraitMultinameUsage.TRAITS_TYPE_CLASS ? 1 : 0);
+                                traitIndex = newAbc.class_info.get(mmu.getClassIndex()).static_traits.traits.size() + newAbc.instance_info.get(mmu.getClassIndex()).instance_traits.traits.size() + (mmu.getTraitsType() == TraitMultinameUsage.TRAITS_TYPE_CLASS ? 1 : 0);
                             }
                         }
                         decompiledTextArea.gotoTrait(traitIndex);
@@ -132,7 +132,7 @@ public class UsageFrame extends AppDialog implements MouseListener {
                 }
             };
 
-            if (decompiledTextArea.getClassIndex() == icu.getClassIndex() && abc == icu.getAbc()) {
+            if (decompiledTextArea.getClassIndex() == icu.getClassIndex() && abcPanel.abc == newAbc) {
                 setTrait.run();
             } else {
                 decompiledTextArea.addScriptListener(setTrait);

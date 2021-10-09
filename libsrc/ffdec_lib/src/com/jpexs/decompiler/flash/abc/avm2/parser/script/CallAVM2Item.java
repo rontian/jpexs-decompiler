@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,7 +16,6 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
-import com.jpexs.helpers.Reference;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
@@ -32,6 +31,7 @@ import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeFunctionItem;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,12 +49,15 @@ public class CallAVM2Item extends AVM2Item {
 
     public List<NamespaceItem> openedNamespaces;
 
-    public CallAVM2Item(List<NamespaceItem> openedNamespaces, int line, GraphTargetItem name, List<GraphTargetItem> arguments) {
+    private AbcIndexing abcIndex;
+
+    public CallAVM2Item(List<NamespaceItem> openedNamespaces, int line, GraphTargetItem name, List<GraphTargetItem> arguments, AbcIndexing abcIndex) {
         super(null, null, NOPRECEDENCE);
         this.openedNamespaces = openedNamespaces;
         this.name = name;
         this.arguments = arguments;
         this.line = line;
+        this.abcIndex = abcIndex;
     }
 
     @Override
@@ -69,6 +72,9 @@ public class CallAVM2Item extends AVM2Item {
         GraphTargetItem callable = name;
         if (callable instanceof UnresolvedAVM2Item) {
             callable = ((UnresolvedAVM2Item) callable).resolved;
+        }
+        if (callable instanceof ImportedSlotConstItem) {
+            callable = ((ImportedSlotConstItem) callable).type;
         }
         if (callable instanceof NameAVM2Item) {
             NameAVM2Item n = (NameAVM2Item) callable;
@@ -93,7 +99,7 @@ public class CallAVM2Item extends AVM2Item {
                 }
             }
             if (cname != null && AVM2SourceGenerator.searchPrototypeChain(otherNs, localData.privateNs, localData.protectedNs, true, g.abcIndex, pkgName, cname, n.getVariableName(), outName, outNs, outPropNs, outPropNsKind, outPropNsIndex, outPropType, outPropValue, outPropValueABC)) {
-                NameAVM2Item nobj = new NameAVM2Item(new TypeItem(localData.getFullClass()), n.line, "this", null, false, n.openedNamespaces);
+                NameAVM2Item nobj = new NameAVM2Item(new TypeItem(localData.getFullClass()), n.line, "this", null, false, n.openedNamespaces, abcIndex);
                 nobj.setRegNumber(0);
                 obj = nobj;
             }
@@ -136,7 +142,7 @@ public class CallAVM2Item extends AVM2Item {
                 }
 
                 if (cname != null && AVM2SourceGenerator.searchPrototypeChain(otherNs, localData.privateNs, localData.protectedNs, true, g.abcIndex, pkgName, cname, prop.propertyName, outName, outNs, outPropNs, outPropNsKind, outPropNsIndex, outPropType, outPropValue, outPropValueAbc) && (localData.getFullClass().equals(outNs.getVal().addWithSuffix(outName.getVal()).toRawString()))) {
-                    NameAVM2Item nobj = new NameAVM2Item(new TypeItem(localData.getFullClass()), 0, "this", null, false, new ArrayList<>());
+                    NameAVM2Item nobj = new NameAVM2Item(new TypeItem(localData.getFullClass()), 0, "this", null, false, new ArrayList<>(), abcIndex);
                     nobj.setRegNumber(0);
                     obj = nobj;
                 }
@@ -202,4 +208,10 @@ public class CallAVM2Item extends AVM2Item {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true;
+    }
+
 }

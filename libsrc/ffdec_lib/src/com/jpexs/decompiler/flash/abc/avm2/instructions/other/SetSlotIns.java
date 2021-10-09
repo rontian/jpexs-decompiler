@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.other;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -21,8 +22,6 @@ import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.SetTypeIns;
-import com.jpexs.decompiler.flash.abc.avm2.model.AVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.ClassAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.DecrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.GetSlotAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.IncrementAVM2Item;
@@ -30,23 +29,16 @@ import com.jpexs.decompiler.flash.abc.avm2.model.LocalRegAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.NewActivationAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.PostDecrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.PostIncrementAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.ScriptAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.SetSlotAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.ThisAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.clauses.ExceptionAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.operations.PreDecrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.operations.PreIncrementAVM2Item;
-import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
-import com.jpexs.decompiler.flash.abc.types.traits.Trait;
-import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
-import com.jpexs.decompiler.flash.abc.types.traits.TraitWithSlot;
-import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
-import java.util.HashMap;
+import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
+import com.jpexs.helpers.Reference;
 import java.util.List;
-import java.util.Stack;
+import java.util.Objects;
 
 /**
  *
@@ -63,41 +55,23 @@ public class SetSlotIns extends InstructionDefinition implements SetTypeIns {
         int slotIndex = ins.operands[0];
         GraphTargetItem value = stack.pop();
         GraphTargetItem obj = stack.pop(); //scopeId
+        if (obj.getThroughRegister() instanceof NewActivationAVM2Item) {
+            ((NewActivationAVM2Item) obj.getThroughRegister()).slots.put(slotIndex, value);
+        }
+        handleSetSlot(localData, stack, ins, output, slotIndex, obj, value);
+    }
+
+    public static void handleSetSlot(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, int slotIndex, GraphTargetItem obj, GraphTargetItem value) {
+
         GraphTargetItem objnoreg = obj;
         obj = obj.getThroughRegister();
-        Multiname slotname = null;
-        if (obj instanceof NewActivationAVM2Item) {
-            ((NewActivationAVM2Item) obj).slots.put(slotIndex, value);
-        }
 
-        if (obj instanceof ExceptionAVM2Item) {
-            slotname = localData.getConstants().getMultiname(((ExceptionAVM2Item) obj).exception.name_index);
-        } else if (obj instanceof ClassAVM2Item) {
-            slotname = ((ClassAVM2Item) obj).className;
-        } else if (obj instanceof ThisAVM2Item) {
-            slotname = ((ThisAVM2Item) obj).classMultiname;
-        } else if (obj instanceof ScriptAVM2Item) {
-            List<Trait> traits = localData.getScriptInfo().get(((ScriptAVM2Item) obj).scriptIndex).traits.traits;
-            for (int t = 0; t < traits.size(); t++) {
-                Trait tr = traits.get(t);
-                if (tr instanceof TraitWithSlot) {
-                    if (((TraitWithSlot) tr).getSlotIndex() == slotIndex) {
-                        slotname = tr.getName(localData.abc);
-                    }
-                }
-            }
-        } else if (obj instanceof NewActivationAVM2Item) {
-            MethodBody body = localData.methodBody;
-            List<Trait> traits = body.traits.traits;
-            for (int t = 0; t < traits.size(); t++) {
-                Trait trait = traits.get(t);
-                if (trait instanceof TraitWithSlot) {
-                    if (((TraitWithSlot) trait).getSlotIndex() == slotIndex) {
-                        slotname = trait.getName(localData.abc);
-                    }
-                }
+        Reference<GraphTargetItem> realObjRef = new Reference<>(null);
+        Multiname slotname = InstructionDefinition.searchSlotName(slotIndex, localData, obj, realObjRef);
 
-            }
+        GraphTargetItem realObj = realObjRef.getVal();
+        if (realObj != null) {
+            obj = realObj;
         }
 
         if (slotname != null) {
@@ -162,27 +136,26 @@ public class SetSlotIns extends InstructionDefinition implements SetTypeIns {
             }
         }
 
-        output.add(new SetSlotAVM2Item(ins, localData.lineStartInstruction, obj, slotname, value));
+        SetSlotAVM2Item result = new SetSlotAVM2Item(ins, localData.lineStartInstruction, obj, objnoreg, slotIndex, slotname, value);
+
+        if (value.getNotCoerced() instanceof CompoundableBinaryOp) {
+            if (!obj.hasSideEffect()) {
+                CompoundableBinaryOp binaryOp = (CompoundableBinaryOp) value.getNotCoerced();
+                if (binaryOp.getLeftSide() instanceof GetSlotAVM2Item) {
+                    GetSlotAVM2Item getSlot = (GetSlotAVM2Item) binaryOp.getLeftSide();
+                    if (Objects.equals(obj, getSlot.scope.getThroughDuplicate()) && slotIndex == getSlot.slotIndex) {
+                        result.compoundValue = binaryOp.getRightSide();
+                        result.compoundOperator = binaryOp.getOperator();
+                    }
+                }
+            }
+        }
+
+        SetTypeIns.handleResult(value, stack, output, localData, result, -1);
     }
 
     @Override
     public int getStackPopCount(AVM2Instruction ins, ABC abc) {
         return 2;
-    }
-
-    @Override
-    public String getObject(Stack<AVM2Item> stack, ABC abc, AVM2Instruction ins, List<AVM2Item> output, MethodBody body, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames) {
-        int slotIndex = ins.operands[0];
-        ////String obj = stack.get(1);
-        String slotname = "";
-        for (int t = 0; t < body.traits.traits.size(); t++) {
-            if (body.traits.traits.get(t) instanceof TraitSlotConst) {
-                if (((TraitSlotConst) body.traits.traits.get(t)).slot_id == slotIndex) {
-                    slotname = body.traits.traits.get(t).getName(abc).getName(abc.constants, fullyQualifiedNames, true, true);
-                }
-            }
-
-        }
-        return slotname;
     }
 }

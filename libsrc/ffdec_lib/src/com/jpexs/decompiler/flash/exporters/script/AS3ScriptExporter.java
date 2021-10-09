@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.script;
 
 import com.jpexs.decompiler.flash.AbortRetryIgnoreHandler;
@@ -105,7 +106,7 @@ public class AS3ScriptExporter {
         StringBuilder out = new StringBuilder();
         int method = t.method_info;
         try {
-            pack.abc.findBody(method).convert(new ConvertData(), "??", ScriptExportMode.AS, false, method, pack.scriptIndex, cindex, pack.abc, t, new ScopeStack(), 0/*?*/, new NulWriter(), new ArrayList<>(), new ArrayList<>(), true);
+            pack.abc.findBody(method).convert(new ConvertData(), "??", ScriptExportMode.AS, false, method, pack.scriptIndex, cindex, pack.abc, t, new ScopeStack(), 0/*?*/, new NulWriter(), new ArrayList<>(), new ArrayList<>(), true, new HashSet<>());
 
             List<GraphTargetItem> ci = pack.abc.findBody(method).convertedItems;
             if (!ci.isEmpty()) {
@@ -178,7 +179,7 @@ public class AS3ScriptExporter {
         StringBuilder out = new StringBuilder();
         int method = t.method_info;
         try {
-            pack.abc.findBody(method).convert(new ConvertData(), "??", ScriptExportMode.AS, false, method, pack.scriptIndex, cindex, pack.abc, t, new ScopeStack(), 0/*?*/, new NulWriter(), new ArrayList<>(), new ArrayList<>(), true);
+            pack.abc.findBody(method).convert(new ConvertData(), "??", ScriptExportMode.AS, false, method, pack.scriptIndex, cindex, pack.abc, t, new ScopeStack(), 0/*?*/, new NulWriter(), new ArrayList<>(), new ArrayList<>(), true, new HashSet<>()/*??*/);
 
             List<GraphTargetItem> ci = pack.abc.findBody(method).convertedItems;
             if (!ci.isEmpty() && (ci.get(0) instanceof DeclarationAVM2Item)) {
@@ -269,7 +270,7 @@ public class AS3ScriptExporter {
                 int iinit = pack.abc.instance_info.get(cindex).iinit_index;
 
                 try {
-                    pack.abc.findBody(iinit).convert(new ConvertData(), "??", ScriptExportMode.AS, false, iinit, pack.scriptIndex, cindex, pack.abc, t, new ScopeStack(), 0/*?*/, new NulWriter(), new ArrayList<>(), new ArrayList<>(), true);
+                    pack.abc.findBody(iinit).convert(new ConvertData(), "??", ScriptExportMode.AS, false, iinit, pack.scriptIndex, cindex, pack.abc, t, new ScopeStack(), 0/*?*/, new NulWriter(), new ArrayList<>(), new ArrayList<>(), true, new HashSet<>());
                     List<GraphTargetItem> iinitBody = pack.abc.findBody(iinit).convertedItems;
                     for (GraphTargetItem it : iinitBody) {
                         if (it instanceof InitPropertyAVM2Item) {
@@ -429,7 +430,7 @@ public class AS3ScriptExporter {
             try {
                 executor.shutdown();
                 if (!executor.awaitTermination(Configuration.exportTimeout.get(), TimeUnit.SECONDS)) {
-                    logger.log(Level.SEVERE, Helper.formatTimeToText(Configuration.exportTimeout.get()) + " ActionScript export limit reached");
+                    logger.log(Level.SEVERE, "{0} ActionScript export limit reached", Helper.formatTimeToText(Configuration.exportTimeout.get()));
                 }
             } catch (InterruptedException ex) {
             } finally {

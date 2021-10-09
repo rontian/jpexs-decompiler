@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ public class FontPreviewDialog extends AppDialog {
      * @param modal Will show as modal?
      */
     public FontPreviewDialog(java.awt.Frame parent, boolean modal, Font font) {
-        super();
+        super(parent);
         setModal(true);
         initComponents();
         View.setWindowIcon(this);

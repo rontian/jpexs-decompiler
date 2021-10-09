@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
  */
 package com.jpexs.decompiler.flash.gui.abc;
 
+import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppStrings;
@@ -24,6 +25,7 @@ import com.jpexs.decompiler.flash.gui.HeaderLabel;
 import com.jpexs.decompiler.flash.gui.Main;
 import com.jpexs.decompiler.flash.gui.TagEditorPanel;
 import com.jpexs.decompiler.flash.gui.View;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -284,7 +286,9 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
             if (trait == null) {
                 traitNameLabel.setText("-");
             } else if (abcPanel != null) {
-                traitNameLabel.setText(trait.getName(abcPanel.abc).getName(abcPanel.abc.constants, null, false, true));
+                Multiname traitName = trait.getName(abcPanel.abc);
+                String traitNameStr = traitName == null ? "" : traitName.getName(abcPanel.abc.constants, null, false, true);
+                traitNameLabel.setText(traitNameStr);
             }
         });
 
@@ -310,9 +314,13 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
                     @Override
                     public void run() {
                         decompiledTextArea.removeScriptListener(this);
-                        decompiledTextArea.gotoTrait(lastTrait);
+                        if (lastTrait == GraphTextWriter.TRAIT_UNKNOWN) {
+                            decompiledTextArea.gotoLastMethod();
+                        } else {
+                            decompiledTextArea.gotoTrait(lastTrait);
+                        }
                         setEditMode(false);
-                        View.showMessageDialog(null, AppStrings.translate("message.trait.saved"), AppStrings.translate("dialog.message.title"), JOptionPane.INFORMATION_MESSAGE, Configuration.showTraitSavedMessage);
+                        ViewMessages.showMessageDialog(DetailPanel.this, AppStrings.translate("message.trait.saved"), AppStrings.translate("dialog.message.title"), JOptionPane.INFORMATION_MESSAGE, Configuration.showTraitSavedMessage);
                     }
                 };
 

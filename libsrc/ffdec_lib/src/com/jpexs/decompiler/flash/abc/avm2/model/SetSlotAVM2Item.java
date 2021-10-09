@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.abc.avm2.model.clauses.AssignmentAVM2Item;
@@ -22,8 +23,10 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import java.util.Objects;
 
 /**
  *
@@ -37,6 +40,20 @@ public class SetSlotAVM2Item extends AVM2Item implements SetTypeAVM2Item, Assign
 
     public DeclarationAVM2Item declaration;
 
+    public GraphTargetItem slotObject;
+
+    public int slotIndex;
+
+    public GraphTargetItem compoundValue;
+
+    public String compoundOperator;
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(scope);
+        visitor.visit(slotObject);
+    }
+
     @Override
     public DeclarationAVM2Item getDeclaration() {
         return declaration;
@@ -47,10 +64,12 @@ public class SetSlotAVM2Item extends AVM2Item implements SetTypeAVM2Item, Assign
         this.declaration = declaration;
     }
 
-    public SetSlotAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem scope, Multiname slotName, GraphTargetItem value) {
+    public SetSlotAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem scope, GraphTargetItem slotObject, int slotIndex, Multiname slotName, GraphTargetItem value) {
         super(instruction, lineStartIns, PRECEDENCE_ASSIGMENT, value);
         this.slotName = slotName;
         this.scope = scope;
+        this.slotObject = slotObject;
+        this.slotIndex = slotIndex;
     }
 
     @Override
@@ -60,12 +79,19 @@ public class SetSlotAVM2Item extends AVM2Item implements SetTypeAVM2Item, Assign
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        getSrcData().localName = slotName == null ? "/*UnknownSlot*/" : slotName.getName(localData.constantsAvm2, localData.fullyQualifiedNames, false, true);
+        getSrcData().localName = getNameAsStr(localData);
         if (getSrcData().localName.equals(value.toString(localData))) {
             //assigning parameters to activation reg
             return writer;
         }
         getName(writer, localData);
+
+        if (compoundOperator != null) {
+            writer.append(" ");
+            writer.append(compoundOperator);
+            writer.append("= ");
+            return compoundValue.toString(writer, localData);
+        }
         writer.append(" = ");
         if (declaration != null && !declaration.type.equals(TypeItem.UNBOUNDED) && (value instanceof ConvertAVM2Item)) {
             return value.value.toString(writer, localData);
@@ -73,20 +99,20 @@ public class SetSlotAVM2Item extends AVM2Item implements SetTypeAVM2Item, Assign
         return value.toString(writer, localData);
     }
 
-    public String getNameAsStr(LocalData localData) {
-        return slotName == null ? "/*UnknownSlot*/" : slotName.getName(localData.constantsAvm2, localData.fullyQualifiedNames, false, true);
+    public String getNameAsStr(LocalData localData) throws InterruptedException {
+        if (slotName == null) {
+            return slotObject.toString(localData) + ".§§slot[" + slotIndex + "]";
+        }
+        return slotName.getName(localData.constantsAvm2, localData.fullyQualifiedNames, false, true);
     }
 
-    public GraphTextWriter getName(GraphTextWriter writer, LocalData localData) {
-        if (slotName == null) {
-            return writer.append("/*UnknownSlot*/");
-        }
-        return writer.append(slotName.getName(localData.constantsAvm2, localData.fullyQualifiedNames, false, true));
+    public GraphTextWriter getName(GraphTextWriter writer, LocalData localData) throws InterruptedException {
+        return writer.append(getNameAsStr(localData));
     }
 
     @Override
     public GraphTargetItem getObject() {
-        return new GetSlotAVM2Item(getInstruction(), getLineStartIns(), scope, slotName);
+        return new GetSlotAVM2Item(getInstruction(), getLineStartIns(), scope, slotObject, slotIndex, slotName);
     }
 
     @Override
@@ -107,5 +133,58 @@ public class SetSlotAVM2Item extends AVM2Item implements SetTypeAVM2Item, Assign
     @Override
     public boolean hasReturnValue() {
         return false;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 29 * hash + Objects.hashCode(this.scope);
+        hash = 29 * hash + this.slotIndex;
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final SetSlotAVM2Item other = (SetSlotAVM2Item) obj;
+        if (this.slotIndex != other.slotIndex) {
+            return false;
+        }
+        if (!Objects.equals(this.scope, other.scope)) {
+            return false;
+        }
+
+        if (!Objects.equals(this.value, other.value)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public GraphTargetItem getCompoundValue() {
+        return compoundValue;
+    }
+
+    @Override
+    public void setCompoundValue(GraphTargetItem value) {
+        this.compoundValue = value;
+    }
+
+    @Override
+    public void setCompoundOperator(String operator) {
+        compoundOperator = operator;
+    }
+
+    @Override
+    public String getCompoundOperator() {
+        return compoundOperator;
     }
 }

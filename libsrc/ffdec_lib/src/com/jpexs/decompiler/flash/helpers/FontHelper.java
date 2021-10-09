@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.helpers;
 
 import java.awt.Canvas;
@@ -27,8 +28,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.text.AttributedCharacterIterator;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiPredicate;
 
 /**
  *
@@ -43,10 +46,11 @@ import java.util.Map;
  */
 public class FontHelper {
 
+    /*NOT AVAILABLE SINCE JAVA9+
     private static Object getFontManager() throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
         Class<?> clFmFactory = Class.forName("sun.font.FontManagerFactory");
         return clFmFactory.getDeclaredMethod("getInstance").invoke(null);
-    }
+    }*/
 
     /**
      * Gets all available fonts in the system
@@ -57,6 +61,7 @@ public class FontHelper {
         Map<String, Map<String, Font>> ret = new HashMap<>();
         Font[] fonts = null;
 
+        /*Refreshing list of installed fonts - reflection access NOT AVAILABLE SINCE JAVA9+
         try {
 
             Object fm = getFontManager();
@@ -84,7 +89,7 @@ public class FontHelper {
         } catch (Throwable ex) {
             // ignore
         }
-
+        */
         if (fonts == null) {
             fonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts();
         }
@@ -158,36 +163,15 @@ public class FontHelper {
         return withKerningX - noKerningX;
     }
 
-    /**
-     * Gets all kerning pairs of a Font. It is very slow.
-     *
-     * @param font
-     * @param size
-     * @return
-     */
-    public static List<KerningPair> getFontKerningPairs(Font font, int size) {
-        File fontFile = getFontFile(font);
-        if (fontFile != null && fontFile.getName().toLowerCase().endsWith(".ttf")) {
-            KerningLoader k = new KerningLoader();
-            try {
-                return k.loadFromTTF(fontFile, size);
-            } catch (IOException | FontFormatException ex) {
-                // ignore
-            }
-        }
-        List<KerningPair> ret = new ArrayList<>();
+    public static List<KerningPair> getFontKerningPairs(File fontFile, int size) {
 
-        List<Character> availableChars = new ArrayList<>();
-        for (char c1 = 0; c1 < Character.MAX_VALUE; c1++) {
-            if (font.canDisplay((int) c1)) {
-                availableChars.add(c1);
-            }
+        KerningLoader k = new KerningLoader();
+        try {
+            return k.loadFromTTF(fontFile, size);
+        } catch (IOException | FontFormatException ex) {
+            // ignore
         }
-        for (char c1 : availableChars) {
-            ret.addAll(getFontKerningPairsOneChar(availableChars, font, c1));
-
-        }
-        return ret;
+        return new ArrayList<>();
     }
 
     public static float getFontAdvance(Font font, char ch) {
@@ -289,9 +273,10 @@ public class FontHelper {
         }
     }
 
-    private static Object getFont2d(Font f) throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+    //NOT AVAILABLE IN java9+
+    /*private static Object getFont2d(Font f) throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
         Object fm = getFontManager();
-        return Class.forName("sun.font.FontManager").getDeclaredMethod("findFont2D", String.class, int.class, int.class).invoke(fm, f.getFontName(), f.getStyle(), 2/*LOGICAL_FALLBACK*/);
+        return Class.forName("sun.font.FontManager").getDeclaredMethod("findFont2D", String.class, int.class, int.class).invoke(fm, f.getFontName(), f.getStyle(), 2/*LOGICAL_FALLBACK*//*);
     }
 
     public static File getFontFile(Font f) {
@@ -305,6 +290,70 @@ public class FontHelper {
         } catch (Throwable e) {
             return null;
         }
+    }*/
+
+    public static Map<String, Map<String, File>> getInstalledFontFiles() {
+        Map<String, Map<String, File>> ret = new HashMap<>();
+
+        List<File> fontFiles = getSystemFontFiles();
+        for (File file : fontFiles) {
+            try {
+                Font f = Font.createFont(Font.TRUETYPE_FONT, file);
+                String fam = f.getFamily(Locale.ENGLISH);
+                if (!ret.containsKey(fam)) {
+                    ret.put(fam, new HashMap<>());
+                }
+                ret.get(fam).put(f.getFontName(Locale.ENGLISH), file);
+
+            } catch (FontFormatException | IOException ex) {
+                //ignore
+            }
+        }
+        return ret;
+    }
+
+    private static List<File> getSystemFontFiles() {
+        List<File> dirs = getSystemFontDirectories();
+        List<File> ret = new ArrayList<>();
+        for (File d : dirs) {
+            try {
+                Object[] paths = Files.find(d.toPath(), Integer.MAX_VALUE, new BiPredicate<Path, BasicFileAttributes>() {
+                    @Override
+                    public boolean test(Path t, BasicFileAttributes u) {
+                        return u.isRegularFile() && (t.toString().endsWith(".ttf") || t.toString().endsWith(".TTF"));
+                    }
+                }).toArray();
+                for (Object o : paths) {
+                    ret.add(((Path) o).toFile());
+                }
+            } catch (IOException ex) {
+                //ignore
+            }
+        }
+        return ret;
+    }
+
+    private static List<File> getSystemFontDirectories() {
+        final String osName = System.getProperty("os.name");
+        List<File> ret = new ArrayList<>();
+        if (osName.startsWith("Windows")) {
+            ret.add(new File(System.getenv("WINDIR") + "\\" + "Fonts"));
+        } else if (osName.startsWith("Mac")) {
+            ret.add(new File(System.getProperty("user.home") + File.separator + "Library/Fonts"));
+            ret.add(new File("/Library/Fonts"));
+            ret.add(new File("/System/Library/Fonts"));
+        } else if (osName.startsWith("Linux") || osName.startsWith("LINUX")) {
+            ret.add(new File(System.getProperty("user.home") + File.separator + ".fonts"));
+            ret.add(new File("/usr/share/fonts/truetype"));
+            ret.add(new File("/usr/share/fonts/TTF"));
+            for (int i = ret.size() - 1; i >= 0; i--) {
+                File f = ret.get(i);
+                if (!(f.exists() && f.isDirectory() && f.canRead())) {
+                    ret.remove(i);
+                }
+            }
+        }
+        return ret;
     }
 
     private static Map<Integer, Character> getFontGlyphToCharMap(Font f) {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.types.traits;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
@@ -167,7 +168,7 @@ public abstract class Trait implements Cloneable, Serializable {
         return getName(abc).getNamespace(abc.constants).getName(abc.constants);
     }
 
-    public void getDependencies(String ignoredCustom, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) {
+    public void getDependencies(int scriptIndex, int classIndex, boolean isStatic, String ignoredCustom, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) throws InterruptedException {
         if (ignoredCustom == null) {
             Namespace n = getName(abc).getNamespace(abc.constants);
             if (n.kind == Namespace.KIND_NAMESPACE) {
@@ -188,7 +189,7 @@ public abstract class Trait implements Cloneable, Serializable {
         return false;
     }
 
-    public void writeImportsUsages(ABC abc, GraphTextWriter writer, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) {
+    public void writeImportsUsages(int scriptIndex, int classIndex, boolean isStatic, ABC abc, GraphTextWriter writer, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) throws InterruptedException {
 
         List<String> namesInThisPackage = new ArrayList<>();
         for (ABCContainerTag tag : abc.getAbcTags()) {
@@ -210,7 +211,7 @@ public abstract class Trait implements Cloneable, Serializable {
         if (ns.kind == Namespace.KIND_NAMESPACE) {
             customNs = ns.getName(abc.constants).toRawString();
         }
-        getDependencies(customNs, abc, dependencies, uses, ignorePackage, new ArrayList<>());
+        getDependencies(scriptIndex, classIndex, isStatic, customNs, abc, dependencies, uses, ignorePackage, new ArrayList<>());
 
         List<DottedChain> imports = new ArrayList<>();
         for (Dependency d : dependencies) {
@@ -231,8 +232,6 @@ public abstract class Trait implements Cloneable, Serializable {
             }
             String name = ipath.getLast();
             if (importnames.contains(name)) {
-                imports.remove(i);
-                i--;
                 fullyQualifiedNames.add(DottedChain.parseWithSuffix(name));
             } else {
                 importnames.add(name);
@@ -257,7 +256,18 @@ public abstract class Trait implements Cloneable, Serializable {
         Collections.sort(imports);
         for (DottedChain imp : imports) {
             if (imp.size() > 1) {  //No imports from root package
-                writer.appendNoHilight("import " + imp.toPrintableString(true) + ";").newLine();
+                writer.appendNoHilight("import ");
+
+                if (imp.size() > 1) {
+                    writer.appendNoHilight(imp.getWithoutLast().toPrintableString(true));
+                    writer.appendNoHilight(".");
+                }
+                if ("*".equals(imp.getLast())){
+                    writer.appendNoHilight("*");
+                }else{
+                    writer.hilightSpecial(IdentifiersDeobfuscation.printIdentifier(true, imp.getLast()), HighlightSpecialType.TYPE_NAME, imp.toRawString());
+                }
+                writer.appendNoHilight(";").newLine();
                 hasImport = true;
             }
         }
@@ -304,37 +314,13 @@ public abstract class Trait implements Cloneable, Serializable {
         return writer;
     }
 
-    protected final DottedChain findCustomNs(int link_ns_index, ABC abc) {
-        String nsname;
-        if (link_ns_index <= 0) {
-            return null;
-        }
-        Namespace ns = abc.constants.getNamespace(link_ns_index);
-        if (ns.kind != Namespace.KIND_NAMESPACE) {
-            return null;
-        }
-        String name = abc.constants.getString(ns.name_index);
-        for (ABCContainerTag abcTag : abc.getAbcTags()) {
-            DottedChain dc = abcTag.getABC().nsValueToName(name);
-            nsname = dc.getLast();
-
-            if (nsname == null) {
-                continue;
-            }
-            if (!nsname.isEmpty()) {
-                return dc;
-            }
-        }
-        return null;
-    }
-
     public final GraphTextWriter getModifiers(ABC abc, boolean isStatic, GraphTextWriter writer) {
         if ((kindFlags & ATTR_Override) > 0) {
             writer.appendNoHilight("override ");
         }
         Multiname m = getName(abc);
         if (m != null) {
-            DottedChain dc = findCustomNs(m.namespace_index, abc);
+            DottedChain dc = abc.findCustomNs(m.namespace_index);
             String nsname = dc != null ? dc.getLast() : null;
 
             Namespace ns = m.getNamespace(abc.constants);
@@ -391,7 +377,9 @@ public abstract class Trait implements Cloneable, Serializable {
         writer.hilightSpecial(traitType, HighlightSpecialType.TRAIT_TYPE);
         writer.appendNoHilight(" ");
         writer.hilightSpecial(abc.constants.multinameToString(name_index), HighlightSpecialType.TRAIT_NAME);
-
+        if (Configuration.indentAs3PCode.get()) {
+            writer.indent();
+        }
         if ((kindFlags & ATTR_Final) > 0) {
             writer.newLine();
             writer.append("flag ");
@@ -419,6 +407,9 @@ public abstract class Trait implements Cloneable, Serializable {
                 writer.append("\"");
                 writer.append(Helper.escapeActionScriptString(abc.constants.getString(abc.metadata_info.get(m).name_index)));
                 writer.append("\"");
+                if (Configuration.indentAs3PCode.get()) {
+                    writer.indent();
+                }
                 writer.newLine();
                 if (m >= 0 && m < abc.metadata_info.size()) {
                     for (int i = 0; i < abc.metadata_info.get(m).keys.length; i++) {
@@ -437,6 +428,9 @@ public abstract class Trait implements Cloneable, Serializable {
                         writer.append("\"");
                         writer.newLine();
                     }
+                }
+                if (Configuration.indentAs3PCode.get()) {
+                    writer.unindent();
                 }
                 writer.append("end ; metadata");
             }

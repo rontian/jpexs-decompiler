@@ -7,6 +7,8 @@
 *.conflict~
 *.identcache
 *.recompiled.swf
+*(Selective Sync Conflict*
+buildlog.*.txt
 run_test_*.swf
 Thumbs.db
 /build/
@@ -74,3 +76,8 @@ hs_err_pid*.log
 /libsrc/plugins/nbproject/private/
 /libsrc/plugins/dist/
 /libsrc/plugins/build/
+#amf 3 test
+exported1.all.bin
+/libsrc/flamingo/nbproject/private/
+/libsrc/flamingo/build/
+/libsrc/flamingo/dist/

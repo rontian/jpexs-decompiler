@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@ import de.hameister.treetable.MyTreeTable;
 import de.hameister.treetable.MyTreeTableModel;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -41,15 +40,12 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTree;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.swing.event.TableModelEvent;
-import javax.swing.event.TableModelListener;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.table.DefaultTableModel;
@@ -190,19 +186,19 @@ public class DebugPanel extends JPanel {
                 JMenuItem watchReadMenuItem = new JMenuItem(AppStrings.translate("debug.watch.add.read"));
                 watchReadMenuItem.addActionListener((ActionEvent e1) -> {
                     if (!Main.addWatch(v, watchParentId, true, false)) {
-                        View.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.add"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                        ViewMessages.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.add"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
                     }
                 });
                 JMenuItem watchWriteMenuItem = new JMenuItem(AppStrings.translate("debug.watch.add.write"));
                 watchWriteMenuItem.addActionListener((ActionEvent e1) -> {
                     if (!Main.addWatch(v, watchParentId, false, true)) {
-                        View.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.add"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                        ViewMessages.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.add"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
                     }
                 });
                 JMenuItem watchReadWriteMenuItem = new JMenuItem(AppStrings.translate("debug.watch.add.readwrite"));
                 watchReadWriteMenuItem.addActionListener((ActionEvent e1) -> {
                     if (!Main.addWatch(v, watchParentId, true, true)) {
-                        View.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.add"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                        ViewMessages.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.add"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
                     }
                 });
 
@@ -479,14 +475,14 @@ public class DebugPanel extends JPanel {
                     if (debugRegistersTable.getRowCount() > 0) {
                         tabTypes.add(SelectedTab.REGISTERS);
                         pa = new JPanel(new BorderLayout());
-                        pa.add(new JScrollPane(debugRegistersTable), BorderLayout.CENTER);
+                        pa.add(new FasterScrollPane(debugRegistersTable), BorderLayout.CENTER);
                         varTabs.addTab(AppStrings.translate("variables.header.registers"), pa);
                     }
                     if (debugLocalsTable.getRowCount() > 0) {
                         tabTypes.add(SelectedTab.LOCALS);
 
                         pa = new JPanel(new BorderLayout());
-                        pa.add(new JScrollPane(debugLocalsTable), BorderLayout.CENTER);
+                        pa.add(new FasterScrollPane(debugLocalsTable), BorderLayout.CENTER);
                         varTabs.addTab(AppStrings.translate("variables.header.locals"), pa);
                     }
 
@@ -494,7 +490,7 @@ public class DebugPanel extends JPanel {
                         tabTypes.add(SelectedTab.SCOPECHAIN);
 
                         pa = new JPanel(new BorderLayout());
-                        pa.add(new JScrollPane(debugScopeTable), BorderLayout.CENTER);
+                        pa.add(new FasterScrollPane(debugScopeTable), BorderLayout.CENTER);
                         varTabs.addTab(AppStrings.translate("variables.header.scopeChain"), pa);
                     }
 
@@ -502,7 +498,7 @@ public class DebugPanel extends JPanel {
                         tabTypes.add(SelectedTab.CONSTANTPOOL);
 
                         pa = new JPanel(new BorderLayout());
-                        pa.add(new JScrollPane(constantPoolTable), BorderLayout.CENTER);
+                        pa.add(new FasterScrollPane(constantPoolTable), BorderLayout.CENTER);
                         varTabs.addTab(AppStrings.translate("constantpool.header"), pa);
                     }
 
@@ -510,21 +506,21 @@ public class DebugPanel extends JPanel {
                         tabTypes.add(SelectedTab.CALLSTACK);
 
                         pa = new JPanel(new BorderLayout());
-                        pa.add(new JScrollPane(callStackTable), BorderLayout.CENTER);
+                        pa.add(new FasterScrollPane(callStackTable), BorderLayout.CENTER);
                         varTabs.addTab(AppStrings.translate("callStack.header"), pa);
                     }
                     if (stackTable.getRowCount() > 0) {
                         tabTypes.add(SelectedTab.STACK);
 
                         pa = new JPanel(new BorderLayout());
-                        pa.add(new JScrollPane(stackTable), BorderLayout.CENTER);
+                        pa.add(new FasterScrollPane(stackTable), BorderLayout.CENTER);
                         varTabs.addTab(AppStrings.translate("stack.header"), pa);
                     }
                     if (logLength > 0) {
                         tabTypes.add(SelectedTab.LOG);
 
                         pa = new JPanel(new BorderLayout());
-                        pa.add(new JScrollPane(traceLogTextarea), BorderLayout.CENTER);
+                        pa.add(new FasterScrollPane(traceLogTextarea), BorderLayout.CENTER);
                         JButton clearButton = new JButton(AppStrings.translate("debuglog.button.clear"));
                         clearButton.addActionListener(new ActionListener() {
 

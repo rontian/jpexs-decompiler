@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,7 +24,7 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 public class SetLocal3Ins extends SetLocalTypeIns {
 
     public SetLocal3Ins() {
-        super(0xd7, "setlocal_3", new int[]{}, false);
+        super(0xd7, "setlocal3", new int[]{}, false);
     }
 
     @Override

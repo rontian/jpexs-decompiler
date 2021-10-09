@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,4 +28,34 @@ public class Zoom {
 
     public Zoom() {
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 97 * hash + (int) (Double.doubleToLongBits(this.value) ^ (Double.doubleToLongBits(this.value) >>> 32));
+        hash = 97 * hash + (this.fit ? 1 : 0);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Zoom other = (Zoom) obj;
+        if (Double.doubleToLongBits(this.value) != Double.doubleToLongBits(other.value)) {
+            return false;
+        }
+        if (this.fit != other.fit) {
+            return false;
+        }
+        return true;
+    }
+
 }

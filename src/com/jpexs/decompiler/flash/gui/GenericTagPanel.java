@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ import com.jpexs.decompiler.flash.gui.generictageditors.NumberEditor;
 import com.jpexs.decompiler.flash.gui.generictageditors.StringEditor;
 import com.jpexs.decompiler.flash.gui.helpers.SpringUtilities;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.timeline.Timelined;
 import com.jpexs.decompiler.flash.types.ARGB;
 import com.jpexs.decompiler.flash.types.RGB;
 import com.jpexs.decompiler.flash.types.RGBA;
@@ -121,14 +122,14 @@ public class GenericTagPanel extends JPanel implements ChangeListener {
             }
         };
         genericTagPropertiesEditorPane.setEditable(false);
-        genericTagPropertiesEditorPaneScrollPanel = new JScrollPane(genericTagPropertiesEditorPane);
+        genericTagPropertiesEditorPaneScrollPanel = new FasterScrollPane(genericTagPropertiesEditorPane);
         add(genericTagPropertiesEditorPaneScrollPanel, BorderLayout.CENTER);
 
         genericTagPropertiesEditPanel = new JPanel();
         genericTagPropertiesEditPanel.setLayout(new SpringLayout());
         JPanel edPanel = new JPanel(new BorderLayout());
         edPanel.add(genericTagPropertiesEditPanel, BorderLayout.NORTH);
-        genericTagPropertiesEditPanelScrollPanel = new JScrollPane(edPanel);
+        genericTagPropertiesEditPanelScrollPanel = new FasterScrollPane(edPanel);
     }
 
     public void clear() {
@@ -143,6 +144,8 @@ public class GenericTagPanel extends JPanel implements ChangeListener {
         removeButtons.clear();
         genericTagPropertiesEditPanel.removeAll();
         genericTagPropertiesEditPanel.setSize(0, 0);
+        tag = null;
+        editedTag = null;
     }
 
     public void setEditMode(boolean edit, Tag tag) {
@@ -512,9 +515,11 @@ public class GenericTagPanel extends JPanel implements ChangeListener {
             }
         }
         SWF swf = tag.getSwf();
+        Timelined tim = tag.getTimelined();
         assignTag(tag, editedTag);
         tag.setModified(true);
         tag.setSwf(swf);
+        tag.setTimelined(tim);
         setTagText(tag);
         return true;
     }

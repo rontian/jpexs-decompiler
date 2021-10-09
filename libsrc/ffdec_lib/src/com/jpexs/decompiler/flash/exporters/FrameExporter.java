@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,26 +26,39 @@ import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.SVGExporter;
+import com.jpexs.decompiler.flash.exporters.modes.FontExportMode;
 import com.jpexs.decompiler.flash.exporters.modes.FrameExportMode;
 import com.jpexs.decompiler.flash.exporters.settings.ButtonExportSettings;
 import com.jpexs.decompiler.flash.exporters.settings.FrameExportSettings;
 import com.jpexs.decompiler.flash.exporters.settings.SpriteExportSettings;
 import com.jpexs.decompiler.flash.exporters.shape.CanvasShapeExporter;
 import com.jpexs.decompiler.flash.helpers.BMPFile;
+import com.jpexs.decompiler.flash.helpers.FontHelper;
 import com.jpexs.decompiler.flash.helpers.ImageHelper;
+import com.jpexs.decompiler.flash.tags.DefineEditTextTag;
 import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
+import com.jpexs.decompiler.flash.tags.DefineText2Tag;
+import com.jpexs.decompiler.flash.tags.DefineTextTag;
 import com.jpexs.decompiler.flash.tags.SetBackgroundColorTag;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.CharacterTag;
+import com.jpexs.decompiler.flash.tags.base.DrawableTag;
+import com.jpexs.decompiler.flash.tags.base.FontTag;
+import com.jpexs.decompiler.flash.tags.base.RenderContext;
+import com.jpexs.decompiler.flash.tags.base.StaticTextTag;
+import com.jpexs.decompiler.flash.tags.base.TextTag;
 import com.jpexs.decompiler.flash.tags.enums.ImageFormat;
 import com.jpexs.decompiler.flash.timeline.DepthState;
 import com.jpexs.decompiler.flash.timeline.Frame;
 import com.jpexs.decompiler.flash.timeline.Timeline;
 import com.jpexs.decompiler.flash.timeline.Timelined;
 import com.jpexs.decompiler.flash.types.ColorTransform;
+import com.jpexs.decompiler.flash.types.DynamicTextGlyphEntry;
+import com.jpexs.decompiler.flash.types.GLYPHENTRY;
 import com.jpexs.decompiler.flash.types.RECT;
 import com.jpexs.decompiler.flash.types.RGB;
 import com.jpexs.decompiler.flash.types.RGBA;
+import com.jpexs.decompiler.flash.types.TEXTRECORD;
 import com.jpexs.decompiler.flash.types.filters.BEVELFILTER;
 import com.jpexs.decompiler.flash.types.filters.COLORMATRIXFILTER;
 import com.jpexs.decompiler.flash.types.filters.CONVOLUTIONFILTER;
@@ -56,11 +69,33 @@ import com.jpexs.decompiler.flash.types.filters.GRADIENTBEVELFILTER;
 import com.jpexs.decompiler.flash.types.filters.GRADIENTGLOWFILTER;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.Path;
+import com.jpexs.helpers.SerializableImage;
 import com.jpexs.helpers.utf8.Utf8Helper;
+import gnu.jpdf.PDFGraphics;
 import gnu.jpdf.PDFJob;
+import java.awt.AlphaComposite;
 import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.Image;
+import java.awt.Paint;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.Stroke;
+import java.awt.font.FontRenderContext;
+import java.awt.font.GlyphVector;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.awt.image.BufferedImageOp;
+import java.awt.image.ImageObserver;
+import java.awt.image.RenderedImage;
+import java.awt.image.renderable.RenderableImage;
 import java.awt.print.PageFormat;
 import java.awt.print.Paper;
 import java.io.BufferedOutputStream;
@@ -69,10 +104,13 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.text.AttributedCharacterIterator;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 import java.util.logging.Level;
@@ -248,10 +286,11 @@ public class FrameExporter {
                 int height = (int) (ftim.displayRect.getHeight() * settings.zoom / SWF.unitDivisor);
                 try (final OutputStream fos = new BufferedOutputStream(new FileOutputStream(f))) {
                     fos.write(Utf8Helper.getBytes("\r\n"));
+                    fos.write(Utf8Helper.getBytes("var scalingGrids = {};\r\nvar boundRects = {};\r\n"));
                     Set<Integer> library = new HashSet<>();
                     ftim.getNeededCharacters(fframes, library);
 
-                    SWF.writeLibrary(fswf, library, fos);
+                    SWF.libraryToHtmlCanvas(fswf, library, fos);
 
                     String currentName = ftim.id == 0 ? "main" : SWF.getTypePrefix(fswf.getCharacter(ftim.id)) + ftim.id;
 
@@ -350,7 +389,7 @@ public class FrameExporter {
 
                     try (OutputStream fos = new BufferedOutputStream(new FileOutputStream(f))) {
                         try {
-                            new PreviewExporter().exportSwf(fos, swf.getCharacter(containerId), fBackgroundColor, 0);
+                            new PreviewExporter().exportSwf(fos, swf.getCharacter(containerId), fBackgroundColor, 0, false);
                         } catch (ActionParseException ex) {
                             Logger.getLogger(MorphShapeExporter.class.getName()).log(Level.SEVERE, null, ex);
                         }
@@ -366,7 +405,7 @@ public class FrameExporter {
 
                         try (OutputStream fos = new BufferedOutputStream(new FileOutputStream(f))) {
                             try {
-                                new PreviewExporter().exportSwf(fos, fn, fBackgroundColor, 0);
+                                new PreviewExporter().exportSwf(fos, fn, fBackgroundColor, 0, false);
                             } catch (ActionParseException ex) {
                                 Logger.getLogger(MorphShapeExporter.class.getName()).log(Level.SEVERE, null, ex);
                             }
@@ -455,15 +494,81 @@ public class FrameExporter {
                         PageFormat pf = new PageFormat();
                         pf.setOrientation(PageFormat.PORTRAIT);
                         Paper p = new Paper();
-                        BufferedImage img0 = frameImages.next();
-                        p.setSize(img0.getWidth() + 10, img0.getHeight() + 10);
-                        pf.setPaper(p);
+                        /*BufferedImage img = frameImages.next();
+                        p.setSize(img.getWidth() + 10, img.getHeight() + 10);*/
 
-                        for (int i = 0; frameImages.hasNext(); i++) {
-                            BufferedImage img = frameImages.next();
-                            Graphics g = job.getGraphics(pf);
-                            g.drawImage(img, 5, 5, img.getWidth(), img.getHeight(), null);
+                        int pos = 0;
+                        RECT rect = tim.displayRect;
+
+                        double w = (rect.getWidth() * settings.zoom / SWF.unitDivisor);
+                        double h = (rect.getHeight() * settings.zoom / SWF.unitDivisor);
+                        p.setSize(w, h);
+                        pf.setPaper(p);
+                        double zoom = settings.zoom;
+                        Matrix m = new Matrix();
+                        m.translate(-rect.Xmin * zoom, -rect.Ymin * zoom);
+                        m.scale(zoom);
+                        Matrix transformation = m;
+                        Map<Integer, Font> existingFonts = new HashMap<>();
+
+                        while (pos < fframes.size()) {
+
+                            if (evl != null) {
+                                Tag parentTag = tim.getParentTag();
+                                String tagName = parentTag == null ? "" : parentTag.getName();
+                                evl.handleExportingEvent("frame", pos + 1, fframes.size(), tagName);
+                            }
+                            int fframe = fframes.get(pos);
+                            final Graphics2D g = (Graphics2D) job.getGraphics(pf);
+                            //g.drawImage(img, 5, 5, img.getWidth(), img.getHeight(), null);
+
+                            SerializableImage image = new SerializableImage((int) w + 1, (int) h + 1, SerializableImage.TYPE_INT_ARGB_PRE) {
+
+                                private Graphics2D compositeGraphics;
+
+                                @Override
+                                public Graphics getGraphics() {
+                                    if (compositeGraphics != null) {
+                                        return compositeGraphics;
+                                    }
+                                    final Graphics2D parentGraphics = (Graphics2D) super.getGraphics();
+                                    compositeGraphics = new DualPdfGraphics2D(parentGraphics, (PDFGraphics) g, existingFonts);
+                                    return compositeGraphics;
+                                }
+
+                                @Override
+                                public void fillTransparent() {
+
+                                }
+
+                            };
+                            //if (backGroundColor == null) {
+                            //    image.fillTransparent();
+                            int imgWidth = (int) (rect.getWidth() * zoom / SWF.unitDivisor) + 1;
+                            int imgHeight = (int) (rect.getHeight() * zoom / SWF.unitDivisor) + 1;
+                            if (!fusesTransparency && fbackgroundColor != null) {
+                                g.setComposite(AlphaComposite.Src);
+                                g.setColor(fbackgroundColor);
+                                g.fill(new Rectangle(imgWidth, imgHeight));
+                            }
+
+                            RenderContext renderContext = new RenderContext();
+                            renderContext.cursorPosition = new Point(-1, -1);
+                            renderContext.mouseButton = 0;
+                            renderContext.stateUnderCursor = new ArrayList<>();
+
+                            try {
+                                tim.toImage(fframe, fframe, renderContext, image, image, false, m, new Matrix(), m, null, zoom, true, new ExportRectangle(rect), m, true, Timeline.DRAW_MODE_ALL);
+                            } catch (Exception ex) {
+                                ex.printStackTrace();
+                            }
                             g.dispose();
+                            /*if (frameImages.hasNext()) {
+                                img = frameImages.next();
+                            } else {
+                                break;
+                            }*/
+                            pos++;
                         }
 
                         job.end();
@@ -481,6 +586,53 @@ public class FrameExporter {
         }
 
         return ret;
+    }
+
+
+    private static void drawText(float x, float y, Matrix trans, int textColor, Map<Integer, Font> existingFonts, FontTag font, String text, int textHeight, Graphics g) {
+        int fontId = font.getFontId();
+        PDFGraphics g2 = (PDFGraphics) g;
+        if (existingFonts.containsKey(fontId)) {
+            g2.setExistingTtfFont(existingFonts.get(fontId).deriveFont((float) textHeight));
+        } else {
+            if (font.getCharacterCount() < 1) {
+                String fontName = font.getFontName();
+                File fontFile = FontTag.fontNameToFile(fontName);
+                if (fontFile == null) {
+                    fontFile = FontTag.fontNameToFile("Times New Roman");
+                }
+                if (fontFile == null) {
+                    fontFile = FontTag.fontNameToFile("Arial");
+                }
+                if (fontFile == null) {
+                    throw new RuntimeException("Font " + fontName + " not found in your system");
+                }
+                Font f = new Font("/MYFONT" + fontId, font.getFontStyle(), textHeight);
+                existingFonts.put(fontId, f);
+                try {
+                    g2.setTtfFont(f, fontFile);
+                } catch (IOException ex) {
+                    Logger.getLogger(FrameExporter.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            } else {
+                FontExporter fe = new FontExporter();
+                File tempFile;
+                try {
+                    tempFile = File.createTempFile("ffdec_font_export_", ".ttf");
+                    fe.exportFont(font, FontExportMode.TTF, tempFile);
+                    Font f = new Font("/MYFONT" + fontId, font.getFontStyle(), textHeight);
+                    existingFonts.put(fontId, f);
+                    g2.setTtfFont(f, tempFile);
+                } catch (IOException ex) {
+                    Logger.getLogger(FrameExporter.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+        }
+
+        g2.setTransform(trans.toTransform());
+        Color textColor2 = new Color(textColor, true);
+        g2.setColor(textColor2);
+        g2.drawTransparentString(text, (float) x, (float) y);
     }
 
     private static String jsArrColor(RGB rgb) {

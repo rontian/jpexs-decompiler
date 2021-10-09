@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,12 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import com.jpexs.decompiler.flash.SWF;
+import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.SVGExporter;
 import com.jpexs.decompiler.flash.exporters.morphshape.CanvasMorphShapeExporter;
@@ -27,6 +29,8 @@ import com.jpexs.decompiler.flash.types.ColorTransform;
 import com.jpexs.decompiler.flash.types.FILLSTYLEARRAY;
 import com.jpexs.decompiler.flash.types.LINESTYLEARRAY;
 import com.jpexs.decompiler.flash.types.MORPHFILLSTYLEARRAY;
+import com.jpexs.decompiler.flash.types.MORPHLINESTYLE;
+import com.jpexs.decompiler.flash.types.MORPHLINESTYLE2;
 import com.jpexs.decompiler.flash.types.MORPHLINESTYLEARRAY;
 import com.jpexs.decompiler.flash.types.RECT;
 import com.jpexs.decompiler.flash.types.SHAPE;
@@ -77,6 +81,38 @@ public abstract class MorphShapeTag extends DrawableTag {
     @Override
     public RECT getRect() {
         return getRect(new HashSet<>());
+    }
+
+    @Override
+    public RECT getRectWithStrokes() {
+        int shapeNum = getShapeNum();
+        int maxWidth = 0;
+        if (shapeNum == 1) {
+            for (MORPHLINESTYLE ls : morphLineStyles.lineStyles) {
+                if (ls.startWidth > maxWidth) {
+                    maxWidth = ls.startWidth;
+                }
+                if (ls.endWidth > maxWidth) {
+                    maxWidth = ls.endWidth;
+                }
+            }
+        }
+        if (shapeNum == 2) {
+            for (MORPHLINESTYLE2 ls : morphLineStyles.lineStyles2) {
+                if (ls.startWidth > maxWidth) {
+                    maxWidth = ls.startWidth;
+                }
+                if (ls.endWidth > maxWidth) {
+                    maxWidth = ls.endWidth;
+                }
+            }
+        }
+        RECT r = new RECT(getRect());
+        r.Xmin -= maxWidth;
+        r.Ymin -= maxWidth;
+        r.Xmax += maxWidth;
+        r.Ymax += maxWidth;
+        return r;
     }
 
     @Override
@@ -278,13 +314,13 @@ public abstract class MorphShapeTag extends DrawableTag {
     }
 
     @Override
-    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, ColorTransform colorTransform) {
+    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, boolean scaleStrokes, int drawMode) {
         SHAPEWITHSTYLE shape = getShapeAtRatio(ratio);
         // morphShape using shapeNum=3, morphShape2 using shapeNum=4
         // todo: Currently the generated image is not cached, because the cache
         // key contains the hashCode of the finalRecord object, and it is always
         // recreated
-        BitmapExporter.export(swf, shape, null, image, transformation, strokeTransformation, colorTransform);
+        BitmapExporter.export(swf, shape, null, image, transformation, strokeTransformation, colorTransform, scaleStrokes);
     }
 
     @Override

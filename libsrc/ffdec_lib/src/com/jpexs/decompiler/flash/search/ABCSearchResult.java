@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,31 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.search;
 
 import com.jpexs.decompiler.flash.AppResources;
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.abc.ABC;
+import com.jpexs.decompiler.flash.abc.ClassPath;
 import com.jpexs.decompiler.flash.abc.ScriptPack;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
  * @author JPEXS
  */
-public class ABCSearchResult {
+public class ABCSearchResult implements Serializable, ScriptSearchResult {
 
     public static String STR_INSTANCE_INITIALIZER = AppResources.translate("trait.instanceinitializer");
 
@@ -32,13 +44,64 @@ public class ABCSearchResult {
 
     public static String STR_SCRIPT_INITIALIZER = AppResources.translate("trait.scriptinitializer");
 
-    private final ScriptPack scriptPack;
+    private ScriptPack scriptPack;
 
     private final boolean pcode;
 
     private final int classIndex;
 
     private final int traitId;
+
+    private static final int SERIAL_VERSION_MAJOR = 1;
+    private static final int SERIAL_VERSION_MINOR = 0;
+
+    @SuppressWarnings("unchecked")
+    public ABCSearchResult(SWF swf, InputStream is) throws IOException, ScriptNotFoundException {
+        ObjectInputStream ois = new ObjectInputStream(is);
+        int versionMajor = ois.read();
+        ois.read(); //minor
+        if (versionMajor != SERIAL_VERSION_MAJOR) {
+            throw new IOException("Unknown search result version: " + versionMajor);
+        }
+
+        ClassPath cp;
+        List<Integer> traitIndices;
+        try {
+            cp = (ClassPath) ois.readObject();
+            traitIndices = (List<Integer>) ois.readObject();
+        } catch (ClassNotFoundException ex) {
+            Logger.getLogger(ABCSearchResult.class.getName()).log(Level.SEVERE, null, ex);
+            throw new IOException();
+        }
+
+        this.pcode = ois.readBoolean();
+        this.classIndex = ois.readInt();
+        this.traitId = ois.readInt();
+        boolean packFound = false;
+        for (ScriptPack pack : swf.getAS3Packs()) {
+            if (cp.equals(pack.getClassPath()) && traitIndices.equals(pack.traitIndices)) {
+                this.scriptPack = pack;
+                packFound = true;
+                break;
+            }
+        }
+        if (!packFound) {
+            throw new ScriptNotFoundException();
+        }
+    }
+
+    public void save(OutputStream os) throws IOException {
+        ObjectOutputStream oos = new ObjectOutputStream(os);
+        oos.write(SERIAL_VERSION_MAJOR);
+        oos.write(SERIAL_VERSION_MINOR);
+        oos.writeObject(scriptPack.getClassPath());
+        oos.writeObject(scriptPack.traitIndices);
+        oos.writeBoolean(pcode);
+        oos.writeInt(classIndex);
+        oos.writeInt(traitId);
+        oos.flush();
+        oos.close();
+    }
 
     public ABCSearchResult(ScriptPack scriptPack) {
         this.scriptPack = scriptPack;
@@ -110,5 +173,10 @@ public class ABCSearchResult {
         }
 
         return result;
+    }
+
+    @Override
+    public SWF getSWF() {
+        return scriptPack.getSwf();
     }
 }

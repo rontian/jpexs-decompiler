@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.exporters.script.PcodeGraphVizExporter;
-import com.jpexs.decompiler.flash.gui.AppDialog;
-import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.gui.graph.AbstractGraphPanel;
 import com.jpexs.decompiler.flash.gui.graph.GraphPanelSimple;
 import com.jpexs.decompiler.flash.gui.graph.GraphVizGraphPanel;
@@ -29,7 +27,7 @@ import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Font;
+import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
@@ -48,8 +46,6 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
-import javax.swing.event.HyperlinkEvent;
-import javax.swing.event.HyperlinkListener;
 
 /**
  *
@@ -119,7 +115,7 @@ public class GraphDialog extends AppDialog {
         });
 
         setTitle(translate("graph") + " " + name);
-        JScrollPane scrollPane = new JScrollPane(gp);
+        JScrollPane scrollPane = new FasterScrollPane(gp);
         scrollBarWidth = scrollPane.getVerticalScrollBar().getPreferredSize().width;
         scrollBarHeight = scrollPane.getHorizontalScrollBar().getPreferredSize().height;
         cnt.add(scrollPane, BorderLayout.CENTER);
@@ -191,7 +187,9 @@ public class GraphDialog extends AppDialog {
     public void setVisible(boolean b) {
 
         super.setVisible(b);
-        Dimension screen = getToolkit().getScreenSize();
+        Rectangle screenBounds = getGraphicsConfiguration().getBounds();
+        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(getGraphicsConfiguration());
+        Dimension screen = new Dimension(screenBounds.width - insets.left - insets.right, screenBounds.height - insets.top - insets.bottom);
         Dimension dim = new Dimension(0, 0);
         Dimension panDim = gp.getPreferredSize();
         // add some magic constants
@@ -203,13 +201,13 @@ public class GraphDialog extends AppDialog {
         if (panDim.width + frameWidthDiff < screen.width) {
             dim.width = panDim.width;
         } else {
-            dim.width = screen.width;
+            dim.width = screen.width - frameWidthDiff;
             tooWide = true;
         }
         if (panDim.height + frameHeightDiff < screen.height) {
             dim.height = panDim.height;
         } else {
-            dim.height = screen.height;
+            dim.height = screen.height - frameHeightDiff;
             tooHigh = true;
         }
 

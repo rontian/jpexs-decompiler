@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,7 +20,9 @@ import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
+import com.jpexs.decompiler.flash.action.model.SetVariableActionItem;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
+import com.jpexs.decompiler.flash.action.parser.script.VariableActionItem;
 import com.jpexs.decompiler.flash.action.swf4.ActionIf;
 import com.jpexs.decompiler.flash.action.swf4.ActionJump;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
@@ -36,6 +38,7 @@ import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.Loop;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.ContinueItem;
@@ -66,6 +69,22 @@ public class ForInActionItem extends LoopActionItem implements Block {
         }
         return ret;
     }
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(variableName);
+        visitor.visit(enumVariable);
+        visitor.visitAll(commands);
+    }
+
+    @Override
+    public void visitNoBlock(GraphTargetVisitorInterface visitor) {
+        visitor.visit(variableName);
+        visitor.visit(enumVariable);
+    }
+
+
+
 
     public ForInActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, Loop loop, GraphTargetItem variableName, GraphTargetItem enumVariable, List<GraphTargetItem> commands) {
         super(instruction, lineStartIns, loop);
@@ -141,8 +160,12 @@ public class ForInActionItem extends LoopActionItem implements Block {
         ActionIf forInEndIf = new ActionIf(0);
         loopExpr.add(forInEndIf);
         List<Action> loopBody = new ArrayList<>();
-        loopBody.add(new ActionPush(new RegisterNumber(exprReg)));
-        loopBody.addAll(asGenerator.toActionList(variableName.toSourceIgnoreReturnValue(localData, generator)));
+
+        //assuming (variableName instanceof VariableActionItem)
+        SetVariableActionItem setVar = new SetVariableActionItem(null, null, asGenerator.pushConstTargetItem(((VariableActionItem) variableName).getVariableName()), new DirectValueActionItem(new RegisterNumber(exprReg)));
+
+        loopBody.addAll(asGenerator.toActionList(setVar.toSourceIgnoreReturnValue(localData, generator)));
+        //loopBody.add(new ActionPush(new RegisterNumber(exprReg)));
         int oldForIn = asGenerator.getForInLevel(localData);
         asGenerator.setForInLevel(localData, oldForIn + 1);
         loopBody.addAll(asGenerator.toActionList(asGenerator.generate(localData, commands)));

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.types.ABCException;
@@ -45,6 +46,8 @@ public class SourceGeneratorLocalData implements Serializable {
 
     public List<Integer> finallyCatches = new ArrayList<>();
 
+    public List<List<Long>> finallyOpenedLoops = new ArrayList<>();
+
     public Map<Integer, Integer> finallyCounter = new HashMap<>();
 
     public int finallyRegister = -1;
@@ -65,8 +68,6 @@ public class SourceGeneratorLocalData implements Serializable {
 
     public List<GraphTargetItem> scopeStack = new ArrayList<>();
 
-    public boolean documentClass;
-
     public ScriptInfo currentScript;
 
     public boolean subMethod = false;
@@ -76,6 +77,11 @@ public class SourceGeneratorLocalData implements Serializable {
     public int protectedNs = 0;
 
     public boolean isStatic = false;
+
+    public List<Long> openedLoops = new ArrayList<>();
+
+    public List<List<Long>> catchesOpenedLoops = new ArrayList<>();
+    public List<Integer> catchesTempRegs = new ArrayList<>();
 
     public String getFullClass() {
         return pkg == null ? currentClass : pkg.addWithSuffix(currentClass).toRawString();

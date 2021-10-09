@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.importers;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -40,9 +41,6 @@ public class FFDecAs3ScriptReplacer implements As3ScriptReplacerInterface {
         int oldIndex = pack.scriptIndex;
         int newIndex = abc.script_info.size();
         try {
-            String documentClass = swf.getDocumentClass();
-            boolean isDocumentClass = documentClass != null && documentClass.equals(pack.getClassPath().toString());
-
             ScriptInfo si = abc.script_info.get(oldIndex);
             if (pack.isSimple) {
                 si.delete(abc, true);
@@ -65,7 +63,7 @@ public class FFDecAs3ScriptReplacer implements As3ScriptReplacerInterface {
             otherAbcs.remove(abc);
             abc.script_info.get(oldIndex).delete(abc, true);
 
-            ActionScript3Parser.compile(text, abc, otherAbcs, isDocumentClass, scriptName, newClassIndex, oldIndex);
+            ActionScript3Parser.compile(text, abc, otherAbcs, scriptName, newClassIndex, oldIndex);
             if (pack.isSimple) {
                 // Move newly added script to its position
                 abc.script_info.set(oldIndex, abc.script_info.get(newIndex));

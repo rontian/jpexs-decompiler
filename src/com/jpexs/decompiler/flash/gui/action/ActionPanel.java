@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@ import com.jpexs.decompiler.flash.DisassemblyListener;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionGraph;
-import com.jpexs.decompiler.flash.action.ActionGraphSource;
 import com.jpexs.decompiler.flash.action.ActionList;
 import com.jpexs.decompiler.flash.action.ConstantPoolTooBigException;
 import com.jpexs.decompiler.flash.action.deobfuscation.BrokenScriptDetector;
@@ -34,10 +33,10 @@ import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.action.swf4.ConstantIndex;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
-import com.jpexs.decompiler.flash.exporters.script.PcodeGraphVizExporter;
 import com.jpexs.decompiler.flash.gui.AppStrings;
 import com.jpexs.decompiler.flash.gui.DebugPanel;
 import com.jpexs.decompiler.flash.gui.DebuggerHandler;
+import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.GraphDialog;
 import com.jpexs.decompiler.flash.gui.HeaderLabel;
 import com.jpexs.decompiler.flash.gui.Main;
@@ -46,27 +45,23 @@ import com.jpexs.decompiler.flash.gui.SearchListener;
 import com.jpexs.decompiler.flash.gui.SearchPanel;
 import com.jpexs.decompiler.flash.gui.TagEditorPanel;
 import com.jpexs.decompiler.flash.gui.View;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.gui.controls.JPersistentSplitPane;
 import com.jpexs.decompiler.flash.gui.controls.NoneSelectedButtonGroup;
 import com.jpexs.decompiler.flash.gui.editor.DebuggableEditorPane;
 import com.jpexs.decompiler.flash.gui.editor.LinkHandler;
 import com.jpexs.decompiler.flash.gui.tagtree.TagTreeModel;
-import com.jpexs.decompiler.flash.helpers.CodeFormatting;
 import com.jpexs.decompiler.flash.helpers.HighlightedText;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
-import com.jpexs.decompiler.flash.helpers.NulWriter;
-import com.jpexs.decompiler.flash.helpers.StringBuilderTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.flash.helpers.hilight.Highlighting;
 import com.jpexs.decompiler.flash.search.ActionScriptSearch;
 import com.jpexs.decompiler.flash.search.ActionSearchResult;
 import com.jpexs.decompiler.flash.search.ScriptSearchListener;
+import com.jpexs.decompiler.flash.search.ScriptSearchResult;
 import com.jpexs.decompiler.flash.tags.DoInitActionTag;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.decompiler.graph.CompilationException;
-import com.jpexs.decompiler.graph.GraphPart;
-import com.jpexs.decompiler.graph.GraphSource;
-import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.helpers.CancellableWorker;
 import com.jpexs.helpers.Helper;
 import java.awt.BorderLayout;
@@ -74,18 +69,16 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Insets;
-import java.awt.Toolkit;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -93,7 +86,6 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
@@ -113,7 +105,7 @@ import jsyntaxpane.actions.ActionUtils;
  *
  * @author JPEXS
  */
-public class ActionPanel extends JPanel implements SearchListener<ActionSearchResult>, TagEditorPanel {
+public class ActionPanel extends JPanel implements SearchListener<ScriptSearchResult>, TagEditorPanel {
 
     private static final Logger logger = Logger.getLogger(ActionPanel.class.getName());
 
@@ -182,9 +174,26 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
 
     private ASMSource lastASM;
 
-    public SearchPanel<ActionSearchResult> searchPanel;
+    public SearchPanel<ScriptSearchResult> searchPanel;
 
     private CancellableWorker setSourceWorker;
+
+    private List<Runnable> scriptListeners = new ArrayList<>();
+
+    public void addScriptListener(Runnable listener) {
+        scriptListeners.add(listener);
+    }
+
+    public void removeScriptListener(Runnable listener) {
+        scriptListeners.remove(listener);
+    }
+
+    private void fireScript() {
+        List<Runnable> list = new ArrayList<>(scriptListeners);
+        for (Runnable r : list) {
+            r.run();
+        }
+    }
 
     public void clearSource() {
         View.checkAccess();
@@ -270,7 +279,7 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
         return null;
     }
 
-    public List<ActionSearchResult> search(SWF swf, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, CancellableWorker<Void> worker) {
+    public List<ActionSearchResult> search(SWF swf, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, CancellableWorker<Void> worker, Map<String, ASMSource> scope) {
         if (txt != null && !txt.isEmpty()) {
             searchPanel.setOptions(ignoreCase, regexp);
 
@@ -286,7 +295,7 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
                 public void onSearch(int pos, int total, String name) {
                     Main.startWork(workText + " \"" + txt + "\" - (" + pos + "/" + total + ") " + name + "... ", worker);
                 }
-            });
+            }, scope);
         }
 
         return null;
@@ -558,6 +567,7 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
 
         setHex(getExportMode(), asm.getScriptName(), actions);
         setDecompiledText(asm.getScriptName(), decompiledText.text);
+        fireScript();
     }
 
     public void hilightOffset(long offset) {
@@ -719,7 +729,7 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
         }
 
         JPanel panCode = new JPanel(new BorderLayout());
-        panCode.add(new JScrollPane(editor), BorderLayout.CENTER);
+        panCode.add(new FasterScrollPane(editor), BorderLayout.CENTER);
         panCode.add(topButtonsPan, BorderLayout.NORTH);
 
         JPanel panB = new JPanel();
@@ -778,7 +788,9 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
         brokenHintPanel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createBevelBorder(BevelBorder.RAISED), new EmptyBorder(5, 5, 5, 5)));
 
         panelWithHint.add(brokenHintPanel, BorderLayout.NORTH);
-        panelWithHint.add(new JScrollPane(decompiledEditor), BorderLayout.CENTER);
+        panelWithHint.add(new FasterScrollPane(decompiledEditor), BorderLayout.CENTER);
+
+        brokenHintPanel.setVisible(false);
 
         panA.add(new JPersistentSplitPane(JSplitPane.VERTICAL_SPLIT, panelWithHint, debugPanel, Configuration.guiActionVarsSplitPaneDividerLocationPercent), BorderLayout.CENTER);
         panA.add(decButtonsPan, BorderLayout.SOUTH);
@@ -933,28 +945,19 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
         asmLabel.setIcon(val ? View.getIcon("editing16") : null); // this line is not working
         topButtonsPan.setVisible(!val);
         editMode = val;
-        editor.requestFocusInWindow();
+        if (val) {
+            editor.requestFocusInWindow();
+        }
     }
 
     public void setDecompiledEditMode(boolean val) {
         View.checkAccess();
 
         if (src != null) {
-            int lastLine = decompiledEditor.getLine();
-            int prefLines = src.getPrefixLineCount();
             if (val) {
-                String newText = src.removePrefixAndSuffix(lastDecompiled.text);
-                setDecompiledText(src.getScriptName(), newText);
-                if (lastLine > -1) {
-                    if (lastLine - prefLines >= 0) {
-                        decompiledEditor.gotoLine(lastLine - prefLines + 1);
-                    }
-                }
+                setDecompiledText(src.getScriptName(), lastDecompiled.text);
             } else {
                 setDecompiledText(src.getScriptName(), lastDecompiled.text);
-                if (lastLine > -1) {
-                    decompiledEditor.gotoLine(lastLine + prefLines + 1);
-                }
             }
         }
 
@@ -968,7 +971,9 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
         decompiledEditor.getCaret().setVisible(true);
         decLabel.setIcon(val ? View.getIcon("editing16") : null);
         editDecompiledMode = val;
-        decompiledEditor.requestFocusInWindow();
+        if (val) {
+            decompiledEditor.requestFocusInWindow();
+        }
     }
 
     private void graphButtonActionPerformed(ActionEvent evt) {
@@ -1041,7 +1046,7 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
                 try {
                     Action.setConstantPools(src, constantPools, true);
                 } catch (ConstantPoolTooBigException ex) {
-                    View.showMessageDialog(this, AppStrings.translate("error.constantPoolTooBig").replace("%index%", Integer.toString(ex.index)).replace("%size%", Integer.toString(ex.size)), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                    ViewMessages.showMessageDialog(this, AppStrings.translate("error.constantPoolTooBig").replace("%index%", Integer.toString(ex.index)).replace("%size%", Integer.toString(ex.size)), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
                 }
             } else {
                 src.setActions(ASMParser.parse(0, true, text, src.getSwf().version, false));
@@ -1050,7 +1055,7 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
             SWF.uncache(src);
             src.setModified();
             setSource(this.src, false);
-            View.showMessageDialog(this, AppStrings.translate("message.action.saved"), AppStrings.translate("dialog.message.title"), JOptionPane.INFORMATION_MESSAGE, Configuration.showCodeSavedMessage);
+            ViewMessages.showMessageDialog(this, AppStrings.translate("message.action.saved"), AppStrings.translate("dialog.message.title"), JOptionPane.INFORMATION_MESSAGE, Configuration.showCodeSavedMessage);
             saveButton.setVisible(false);
             cancelButton.setVisible(false);
             editButton.setVisible(true);
@@ -1061,14 +1066,14 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
         } catch (ActionParseException ex) {
             editor.gotoLine((int) ex.line);
             editor.markError();
-            View.showMessageDialog(this, AppStrings.translate("error.action.save").replace("%error%", ex.text).replace("%line%", Long.toString(ex.line)), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+            ViewMessages.showMessageDialog(this, AppStrings.translate("error.action.save").replace("%error%", ex.text).replace("%line%", Long.toString(ex.line)), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
         } catch (Throwable ex) {
             logger.log(Level.SEVERE, null, ex);
         }
     }
 
     private void editDecompiledButtonActionPerformed(ActionEvent evt) {
-        if (View.showConfirmDialog(null, AppStrings.translate("message.confirm.experimental.function"), AppStrings.translate("message.warning"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE, Configuration.warningExperimentalAS12Edit, JOptionPane.OK_OPTION) == JOptionPane.OK_OPTION) {
+        if (ViewMessages.showConfirmDialog(this, AppStrings.translate("message.confirm.experimental.function"), AppStrings.translate("message.warning"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE, Configuration.warningExperimentalAS12Edit, JOptionPane.OK_OPTION) == JOptionPane.OK_OPTION) {
             setDecompiledEditMode(true);
         }
     }
@@ -1079,20 +1084,24 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
 
     private void saveDecompiledButtonActionPerformed(ActionEvent evt) {
         try {
-            ActionScript2Parser par = new ActionScript2Parser(mainPanel.getCurrentSwf().version);
+            ActionScript2Parser par = new ActionScript2Parser(mainPanel.getCurrentSwf(), src);
             src.setActions(par.actionsFromString(decompiledEditor.getText()));
             SWF.uncache(src);
             src.setModified();
             setSource(src, false);
 
-            View.showMessageDialog(this, AppStrings.translate("message.action.saved"), AppStrings.translate("dialog.message.title"), JOptionPane.INFORMATION_MESSAGE, Configuration.showCodeSavedMessage);
+            ViewMessages.showMessageDialog(this, AppStrings.translate("message.action.saved"), AppStrings.translate("dialog.message.title"), JOptionPane.INFORMATION_MESSAGE, Configuration.showCodeSavedMessage);
             setDecompiledEditMode(false);
         } catch (IOException ex) {
             logger.log(Level.SEVERE, "IOException during action compiling", ex);
         } catch (ActionParseException ex) {
-            View.showMessageDialog(this, AppStrings.translate("error.action.save").replace("%error%", ex.text).replace("%line%", Long.toString(ex.line)), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+            decompiledEditor.gotoLine((int) ex.line);
+            decompiledEditor.markError();
+            ViewMessages.showMessageDialog(this, AppStrings.translate("error.action.save").replace("%error%", ex.text).replace("%line%", Long.toString(ex.line)), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
         } catch (CompilationException ex) {
-            View.showMessageDialog(this, AppStrings.translate("error.action.save").replace("%error%", ex.text).replace("%line%", Long.toString(ex.line)), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+            decompiledEditor.gotoLine((int) ex.line);
+            decompiledEditor.markError();
+            ViewMessages.showMessageDialog(this, AppStrings.translate("error.action.save").replace("%error%", ex.text).replace("%line%", Long.toString(ex.line)), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
         } catch (Throwable ex) {
             logger.log(Level.SEVERE, null, ex);
         }
@@ -1107,20 +1116,37 @@ public class ActionPanel extends JPanel implements SearchListener<ActionSearchRe
     }
 
     @Override
-    public void updateSearchPos(ActionSearchResult item) {
+    public void updateSearchPos(String searchedText, boolean ignoreCase, boolean regExp, ScriptSearchResult item) {
         View.checkAccess();
 
+        if (!(item instanceof ActionSearchResult)) {
+            return;
+        }
+        ActionSearchResult result = (ActionSearchResult) item;
+
+        searchPanel.setOptions(ignoreCase, regExp);
+        searchPanel.setSearchText(searchedText);
+        Runnable onScriptComplete = new Runnable() {
+            @Override
+            public void run() {
+                decompiledEditor.setCaretPosition(0);
+
+                if (result.isPcode()) {
+                    searchPanel.showQuickFindDialog(editor);
+                } else {
+                    searchPanel.showQuickFindDialog(decompiledEditor);
+                }
+                removeScriptListener(this);
+            }
+        };
+
+        addScriptListener(onScriptComplete);
+
         TagTreeModel ttm = (TagTreeModel) mainPanel.tagTree.getModel();
-        TreePath tp = ttm.getTreePath(item.getSrc());
+        TreePath tp = ttm.getTreePath(result.getSrc());
         mainPanel.tagTree.setSelectionPath(tp);
         mainPanel.tagTree.scrollPathToVisible(tp);
-        decompiledEditor.setCaretPosition(0);
 
-        if (item.isPcode()) {
-            searchPanel.showQuickFindDialog(editor);
-        } else {
-            searchPanel.showQuickFindDialog(decompiledEditor);
-        }
     }
 
     @Override

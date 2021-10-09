@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,20 +12,25 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
+import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.types.Namespace;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  *
@@ -70,31 +75,41 @@ public class FullMultinameAVM2Item extends AVM2Item {
         this.resolvedMultinameName = resolvedMultinameName;
     }
 
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        if (name != null) {
+            visitor.visit(name);
+        }
+        if (namespace != null) {
+            visitor.visit(namespace);
+        }
+    }
+
     public boolean isRuntime() {
         return (name != null) || (namespace != null);
     }
 
-    public boolean isTopLevel(String tname, AVM2ConstantPool constants, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames) throws InterruptedException {
+    public boolean isTopLevel(String tname, ABC abc, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames, Set<Integer> seenMethods) throws InterruptedException {
         String cname;
         if (name != null) {
-            cname = name.toString(LocalData.create(constants, localRegNames, fullyQualifiedNames));
+            cname = name.toString(LocalData.create(abc, localRegNames, fullyQualifiedNames, seenMethods));
         } else {
-            cname = (constants.getMultiname(multinameIndex).getName(constants, fullyQualifiedNames, true, true));
+            cname = (abc.constants.getMultiname(multinameIndex).getName(abc.constants, fullyQualifiedNames, true, true));
         }
         String cns = "";
         if (namespace != null) {
-            cns = namespace.toString(LocalData.create(constants, localRegNames, fullyQualifiedNames));
+            cns = namespace.toString(LocalData.create(abc, localRegNames, fullyQualifiedNames, seenMethods));
         } else {
-            Namespace ns = constants.getMultiname(multinameIndex).getNamespace(constants);
+            Namespace ns = abc.constants.getMultiname(multinameIndex).getNamespace(abc.constants);
             if ((ns != null) && (ns.name_index != 0)) {
-                cns = ns.getName(constants).toPrintableString(true);
+                cns = ns.getName(abc.constants).toPrintableString(true);
             }
         }
         return cname.equals(tname) && cns.isEmpty();
     }
 
-    public boolean isXML(AVM2ConstantPool constants, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames) throws InterruptedException {
-        return isTopLevel("XML", constants, localRegNames, fullyQualifiedNames);
+    public boolean isXML(ABC abc, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames, Set<Integer> seenMethods) throws InterruptedException {
+        return isTopLevel("XML", abc, localRegNames, fullyQualifiedNames, seenMethods);
     }
 
     @Override
@@ -190,4 +205,42 @@ public class FullMultinameAVM2Item extends AVM2Item {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 29 * hash + this.multinameIndex;
+        hash = 29 * hash + Objects.hashCode(this.name);
+        hash = 29 * hash + Objects.hashCode(this.namespace);
+        hash = 29 * hash + (this.property ? 1 : 0);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final FullMultinameAVM2Item other = (FullMultinameAVM2Item) obj;
+        if (this.multinameIndex != other.multinameIndex) {
+            return false;
+        }
+        if (this.property != other.property) {
+            return false;
+        }
+        if (!Objects.equals(this.name, other.name)) {
+            return false;
+        }
+        if (!Objects.equals(this.namespace, other.namespace)) {
+            return false;
+        }
+        return true;
+    }
+
 }

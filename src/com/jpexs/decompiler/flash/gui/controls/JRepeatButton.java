@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ public class JRepeatButton extends JButton {
                             cnt++;
                             JRepeatButton button = JRepeatButton.this;
                             repeatCount = cnt;
-                            fireActionPerformed(new ActionEvent(button, ActionEvent.ACTION_PERFORMED, button.getActionCommand(), e.getWhen(), e.getModifiers()));
+                            fireActionPerformed(new ActionEvent(button, ActionEvent.ACTION_PERFORMED, button.getActionCommand(), e.getWhen(), e.getModifiersEx()));
                         });
                     }
                 };

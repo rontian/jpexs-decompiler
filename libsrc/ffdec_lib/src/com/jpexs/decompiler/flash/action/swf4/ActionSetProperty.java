@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -89,6 +89,10 @@ public class ActionSetProperty extends Action {
             GraphTargetItem obj = ((IncrementActionItem) value).object;
             if (!stack.isEmpty() && stack.peek().valueEquals(obj)) {
                 stack.pop();
+
+                if (obj instanceof GetPropertyActionItem) {
+                    ((GetPropertyActionItem) obj).useGetPropertyFunction = false;
+                }
                 stack.push(new PostIncrementActionItem(this, lineStartAction, obj));
                 return;
             }
@@ -97,6 +101,9 @@ public class ActionSetProperty extends Action {
             GraphTargetItem obj = ((DecrementActionItem) value).object;
             if (!stack.isEmpty() && stack.peek().valueEquals(obj)) {
                 stack.pop();
+                if (obj instanceof GetPropertyActionItem) {
+                    ((GetPropertyActionItem) obj).useGetPropertyFunction = false;
+                }
                 stack.push(new PostDecrementActionItem(this, lineStartAction, obj));
                 return;
             }
@@ -112,12 +119,14 @@ public class ActionSetProperty extends Action {
                 if (value instanceof IncrementActionItem) {
                     if (((IncrementActionItem) value).object instanceof GetPropertyActionItem) {
                         if (((GetPropertyActionItem) ((IncrementActionItem) value).object).valueEquals(((SetPropertyActionItem) ret).getObject())) {
+                            ((GetPropertyActionItem) ((IncrementActionItem) value).object).useGetPropertyFunction = false;
                             ret = new PreIncrementActionItem(this, lineStartAction, ((IncrementActionItem) value).object);
                         }
                     }
                 } else if (value instanceof DecrementActionItem) {
                     if (((DecrementActionItem) value).object instanceof GetPropertyActionItem) {
                         if (((GetPropertyActionItem) ((DecrementActionItem) value).object).valueEquals(((SetPropertyActionItem) ret).getObject())) {
+                            ((GetPropertyActionItem) ((DecrementActionItem) value).object).useGetPropertyFunction = false;
                             ret = new PreDecrementActionItem(this, lineStartAction, ((DecrementActionItem) value).object);
                         }
                     }

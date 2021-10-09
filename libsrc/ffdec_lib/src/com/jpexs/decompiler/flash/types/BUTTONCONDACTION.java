@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -60,6 +60,12 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
     public BUTTONCONDACTION() {
         swf = null;
         tag = null;
+        actionBytes = new ByteArrayRange(SWFInputStream.BYTE_ARRAY_EMPTY);
+    }
+
+    public BUTTONCONDACTION(SWF swf, Tag tag) {
+        this.swf = swf;
+        this.tag = tag;
         actionBytes = new ByteArrayRange(SWFInputStream.BYTE_ARRAY_EMPTY);
     }
 
@@ -170,7 +176,7 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
      */
     @Override
     public String toString() {
-        return "BUTTONCONDACTION";
+        return "BUTTONCONDACTION " + getHeader(false);
     }
 
     /**
@@ -290,10 +296,10 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
         if (condOverUpToIddle) {
             events.add("rollOut");
         }
-        if (condOverDownToOutDown) {
+        if (condOverDownToOutDown || condOverDownToIdle) {
             events.add("dragOut");
         }
-        if (condOutDownToOverDown) {
+        if (condOutDownToOverDown || condIdleToOverDown) {
             events.add("dragOver");
         }
         if (condKeyPress > 0) {
@@ -338,7 +344,7 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
 
     @Override
     public String getExportFileName() {
-        return getHeader(true);
+        return "BUTTONCONDACTION " + getHeader(true);
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.types.traits;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -32,6 +33,7 @@ import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.ScopeStack;
 import com.jpexs.helpers.Helper;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -60,11 +62,11 @@ public class TraitMethodGetterSetter extends Trait {
     }
 
     @Override
-    public void getDependencies(String customNs, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) {
+    public void getDependencies(int scriptIndex, int classIndex, boolean isStatic, String customNs, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) throws InterruptedException {
         if (ignorePackage == null) {
             ignorePackage = getPackage(abc);
         }
-        super.getDependencies(customNs, abc, dependencies, uses, ignorePackage, fullyQualifiedNames);
+        super.getDependencies(scriptIndex, classIndex, isStatic, customNs, abc, dependencies, uses, ignorePackage, fullyQualifiedNames);
 
         if (customNs == null) {
             Namespace n = getName(abc).getNamespace(abc.constants);
@@ -74,7 +76,7 @@ public class TraitMethodGetterSetter extends Trait {
         }
         //if (method_info != 0)
         {
-            DependencyParser.parseDependenciesFromMethodInfo(customNs, abc, method_info, dependencies, uses, ignorePackage, fullyQualifiedNames, new ArrayList<>());
+            DependencyParser.parseDependenciesFromMethodInfo(this, scriptIndex, classIndex, isStatic, customNs, abc, method_info, dependencies, uses, ignorePackage, fullyQualifiedNames, new ArrayList<>());
         }
     }
 
@@ -106,7 +108,7 @@ public class TraitMethodGetterSetter extends Trait {
     @Override
     public void convert(Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, int scriptIndex, int classIndex, NulWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel) throws InterruptedException {
         if (classIndex < 0) {
-            writeImportsUsages(abc, writer, getPackage(abc), fullyQualifiedNames);
+            writeImportsUsages(scriptIndex, classIndex, isStatic, abc, writer, getPackage(abc), fullyQualifiedNames);
         }
         writer.startMethod(method_info);
         path = path + "." + getName(abc).getName(abc.constants, fullyQualifiedNames, false, true);
@@ -115,7 +117,7 @@ public class TraitMethodGetterSetter extends Trait {
         if (exportMode != ScriptExportMode.AS_METHOD_STUBS) {
             if (!(classIndex != -1 && abc.instance_info.get(classIndex).isInterface() || bodyIndex == -1)) {
                 if (bodyIndex != -1) {
-                    abc.bodies.get(bodyIndex).convert(convertData, path, exportMode, isStatic, method_info, scriptIndex, classIndex, abc, this, new ScopeStack(), 0, writer, fullyQualifiedNames, null, true);
+                    abc.bodies.get(bodyIndex).convert(convertData, path, exportMode, isStatic, method_info, scriptIndex, classIndex, abc, this, new ScopeStack(), 0, writer, fullyQualifiedNames, null, true, new HashSet<>());
                 }
             }
         }
@@ -126,7 +128,7 @@ public class TraitMethodGetterSetter extends Trait {
     public GraphTextWriter toString(Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, int scriptIndex, int classIndex, GraphTextWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel) throws InterruptedException {
 
         if (classIndex < 0) {
-            writeImportsUsages(abc, writer, getPackage(abc), fullyQualifiedNames);
+            writeImportsUsages(scriptIndex, classIndex, isStatic, abc, writer, getPackage(abc), fullyQualifiedNames);
         }
         getMetaData(parent, convertData, abc, writer);
         writer.startMethod(method_info);
@@ -142,7 +144,7 @@ public class TraitMethodGetterSetter extends Trait {
                     convertTraitHeader(abc, writer);
                 }
                 if (bodyIndex != -1) {
-                    abc.bodies.get(bodyIndex).toString(path, exportMode, abc, this, writer, fullyQualifiedNames);
+                    abc.bodies.get(bodyIndex).toString(path, exportMode, abc, this, writer, fullyQualifiedNames, new HashSet<>());
                 }
             } else {
                 String retTypeRaw = abc.method_info.get(method_info).getReturnTypeRaw(abc.constants, fullyQualifiedNames);
@@ -223,6 +225,9 @@ public class TraitMethodGetterSetter extends Trait {
         writer.appendNoHilight("dispid ");
         writer.hilightSpecial("" + disp_id, HighlightSpecialType.DISP_ID);
         writer.newLine();
+        /*writer.appendNoHilight("method_info ");//Not in RAbcDasm
+        writer.appendNoHilight("" + method_info);
+        writer.newLine();*/
         return writer;
     }
 

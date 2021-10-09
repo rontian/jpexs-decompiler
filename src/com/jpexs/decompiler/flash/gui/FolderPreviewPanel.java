@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.BoundedTag;
@@ -290,9 +291,13 @@ public class FolderPreviewPanel extends JPanel {
         int height = 0;
         SerializableImage imgSrc = null;
         Matrix m = new Matrix();
+        double ow = 1;
+        double oh = 1;
         if (treeItem instanceof Frame) {
             Frame fn = (Frame) treeItem;
             RECT rect = swf.displayRect;
+            ow = rect.getWidth();
+            oh = rect.getHeight();
             double zoom = 1.0;
             if (rect.getWidth() > 0) {
                 double ratio = (PREVIEW_SIZE - 1) * SWF.unitDivisor / (rect.getWidth());
@@ -311,7 +316,7 @@ public class FolderPreviewPanel extends JPanel {
             String key = "frame_" + fn.frame + "_" + timeline.id + "_" + zoom;
             imgSrc = swf.getFromCache(key);
             if (imgSrc == null) {
-                imgSrc = SWF.frameToImageGet(timeline, fn.frame, fn.frame, null, 0, rect, new Matrix(), null, null, zoom);
+                imgSrc = SWF.frameToImageGet(timeline, fn.frame, 0, null, 0, rect, new Matrix(), null, null, zoom);
                 swf.putToCache(key, imgSrc);
             }
 
@@ -321,9 +326,13 @@ public class FolderPreviewPanel extends JPanel {
             imgSrc = ((ImageTag) treeItem).getImageCached();
             width = imgSrc.getWidth();
             height = imgSrc.getHeight();
+            ow = width * SWF.unitDivisor;
+            oh = height * SWF.unitDivisor;
         } else if (treeItem instanceof BoundedTag) {
             BoundedTag boundedTag = (BoundedTag) treeItem;
             RECT rect = boundedTag.getRect();
+            ow = rect.getWidth();
+            oh = rect.getHeight();
             width = (int) (rect.getWidth() / SWF.unitDivisor) + 1;
             height = (int) (rect.getHeight() / SWF.unitDivisor) + 1;
             m.translate(-rect.Xmin, -rect.Ymin);
@@ -362,7 +371,8 @@ public class FolderPreviewPanel extends JPanel {
         image.fillTransparent();
         if (imgSrc == null) {
             DrawableTag drawable = (DrawableTag) treeItem;
-            drawable.toImage(0, 0, 0, new RenderContext(), image, false, m, m, m, null);
+            ExportRectangle viewRectangle = new ExportRectangle(0, 0, ow, oh);
+            drawable.toImage(0, 0, 0, new RenderContext(), image, image, false, m, m, m, m, null, scale, false, viewRectangle, true, Timeline.DRAW_MODE_ALL);
         } else {
             Graphics2D g = (Graphics2D) image.getGraphics();
             g.setTransform(m.toTransform());

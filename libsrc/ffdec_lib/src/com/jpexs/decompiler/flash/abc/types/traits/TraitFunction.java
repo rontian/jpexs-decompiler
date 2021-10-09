@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.types.traits;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -29,6 +30,7 @@ import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.ScopeStack;
 import com.jpexs.helpers.Helper;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -79,7 +81,7 @@ public class TraitFunction extends Trait implements TraitWithSlot {
 
     @Override
     public GraphTextWriter toString(Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, int scriptIndex, int classIndex, GraphTextWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel) throws InterruptedException {
-        writeImportsUsages(abc, writer, getPackage(abc), fullyQualifiedNames);
+        writeImportsUsages(scriptIndex, classIndex, false, abc, writer, getPackage(abc), fullyQualifiedNames);
         getMetaData(parent, convertData, abc, writer);
         writer.startMethod(method_info);
         toStringHeader(parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel);
@@ -87,7 +89,7 @@ public class TraitFunction extends Trait implements TraitWithSlot {
         writer.startBlock();
         int bodyIndex = abc.findBodyIndex(method_info);
         if (bodyIndex != -1) {
-            abc.bodies.get(bodyIndex).toString(path + "." + abc.constants.getMultiname(name_index).getName(abc.constants, fullyQualifiedNames, false, true), exportMode, abc, this, writer, fullyQualifiedNames);
+            abc.bodies.get(bodyIndex).toString(path + "." + abc.constants.getMultiname(name_index).getName(abc.constants, fullyQualifiedNames, false, true), exportMode, abc, this, writer, fullyQualifiedNames, new HashSet<>());
         }
         writer.endBlock();
 
@@ -99,12 +101,12 @@ public class TraitFunction extends Trait implements TraitWithSlot {
     @Override
     public void convert(Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, int scriptIndex, int classIndex, NulWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel) throws InterruptedException {
         fullyQualifiedNames = new ArrayList<>();
-        writeImportsUsages(abc, writer, getPackage(abc), fullyQualifiedNames);
+        writeImportsUsages(scriptIndex, classIndex, false, abc, writer, getPackage(abc), fullyQualifiedNames);
         writer.startMethod(method_info);
         convertHeader(parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel);
         int bodyIndex = abc.findBodyIndex(method_info);
         if (bodyIndex != -1) {
-            abc.bodies.get(bodyIndex).convert(convertData, path + "." + abc.constants.getMultiname(name_index).getName(abc.constants, fullyQualifiedNames, false, true), exportMode, isStatic, method_info, scriptIndex, classIndex, abc, this, new ScopeStack(), 0, writer, fullyQualifiedNames, null, true);
+            abc.bodies.get(bodyIndex).convert(convertData, path + "." + abc.constants.getMultiname(name_index).getName(abc.constants, fullyQualifiedNames, false, true), exportMode, isStatic, method_info, scriptIndex, classIndex, abc, this, new ScopeStack(), 0, writer, fullyQualifiedNames, null, true, new HashSet<>());
         }
         writer.endMethod();
     }
@@ -125,14 +127,14 @@ public class TraitFunction extends Trait implements TraitWithSlot {
     }
 
     @Override
-    public void getDependencies(String customNs, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) {
+    public void getDependencies(int scriptIndex, int classIndex, boolean isStatic, String customNs, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) throws InterruptedException {
         if (ignorePackage == null) {
             ignorePackage = getPackage(abc);
         }
-        super.getDependencies(customNs, abc, dependencies, uses, ignorePackage, fullyQualifiedNames);
+        super.getDependencies(scriptIndex, classIndex, false, customNs, abc, dependencies, uses, ignorePackage, fullyQualifiedNames);
         //if (method_info != 0)
         {
-            DependencyParser.parseDependenciesFromMethodInfo(customNs, abc, method_info, dependencies, uses, ignorePackage, fullyQualifiedNames, new ArrayList<>());
+            DependencyParser.parseDependenciesFromMethodInfo(this, scriptIndex, classIndex, false, customNs, abc, method_info, dependencies, uses, ignorePackage, fullyQualifiedNames, new ArrayList<>());
         }
     }
 
@@ -142,6 +144,10 @@ public class TraitFunction extends Trait implements TraitWithSlot {
         writer.newLine();
         writer.appendNoHilight("slotid ");
         writer.hilightSpecial(Integer.toString(slot_id), HighlightSpecialType.SLOT_ID);
+        writer.newLine();
+        /*writer.appendNoHilight("method_info ");//Not in RAbcDasm
+        writer.appendNoHilight("" + method_info);
+        writer.newLine();*/
         return writer;
     }
 

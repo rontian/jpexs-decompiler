@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ import java.awt.Color;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import javax.swing.JButton;
 import javax.swing.JPanel;
@@ -41,13 +42,14 @@ public class DebugLogDialog extends AppDialog {
 
     private final Debugger debug;
 
-    public DebugLogDialog(Debugger debug) {
+    public DebugLogDialog(Window owner, Debugger debug) {
+        super(owner);
         setSize(800, 600);
         this.debug = debug;
         setTitle(translate("dialog.title"));
         logTextArea.setBackground(Color.white);
         logTextArea.setEditable(false);
-        JScrollPane spane = new JScrollPane(logTextArea);
+        JScrollPane spane = new FasterScrollPane(logTextArea);
         spane.setPreferredSize(new Dimension(800, 500));
 
         debug.addMessageListener(new DebugListener() {

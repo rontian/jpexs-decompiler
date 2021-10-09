@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,42 +16,35 @@
  */
 package com.jpexs.decompiler.flash.exporters.script;
 
-import com.jpexs.decompiler.flash.AppResources;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.abc.ABC;
-import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2Graph;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
-import com.jpexs.decompiler.flash.action.Action;
-import static com.jpexs.decompiler.flash.action.Action.adr2ip;
 import com.jpexs.decompiler.flash.action.ActionGraph;
-import com.jpexs.decompiler.flash.action.ActionGraphSource;
 import com.jpexs.decompiler.flash.action.ActionList;
-import com.jpexs.decompiler.flash.action.swf5.ActionDefineFunction;
-import com.jpexs.decompiler.flash.action.swf5.ActionWith;
-import com.jpexs.decompiler.flash.action.swf7.ActionDefineFunction2;
-import com.jpexs.decompiler.flash.action.swf7.ActionTry;
-import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
+import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.exporters.script.graphviz.AbstractLexer;
+import com.jpexs.decompiler.flash.exporters.script.graphviz.Flasm3Lexer;
+import com.jpexs.decompiler.flash.exporters.script.graphviz.FlasmLexer;
+import com.jpexs.decompiler.flash.exporters.script.graphviz.Token;
+import com.jpexs.decompiler.flash.exporters.script.graphviz.TokenType;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
-import com.jpexs.decompiler.flash.helpers.StringBuilderTextWriter;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.decompiler.graph.Graph;
+import com.jpexs.decompiler.graph.GraphException;
 import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSource;
-import com.jpexs.decompiler.graph.GraphSourceItemContainer;
-import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.ScopeStack;
-import com.jpexs.decompiler.graph.TranslateException;
-import com.jpexs.decompiler.graph.model.CommentItem;
 import com.jpexs.graphs.graphviz.dot.parser.DotId;
 import com.jpexs.helpers.Helper;
+import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
 
 /**
  *
@@ -61,7 +54,7 @@ public class PcodeGraphVizExporter {
 
     private final String BLOCK_STYLE = "shape=\"box\"";
 
-    private static final int INS_LEN_LIMIT = 50;
+    private static final int INS_LEN_LIMIT = 80;
     private static final String ELIPSIS = "...";
 
     private String getBlockName(GraphSource list, GraphPart part) {
@@ -104,55 +97,189 @@ public class PcodeGraphVizExporter {
         for (GraphPart h : heads) {
             populateParts(h, allBlocks);
         }
+        List<GraphException> exceptions = graph.getExceptions();
 
         Set<Long> knownAddresses = graphSource.getImportantAddresses();
-        int h = 0;
-        for (GraphPart head : heads) {
-            String headName = "start";
-            if (heads.size() > 1) {
-                h++;
-                headName = "start" + h;
+
+        Set<GraphPart> knownHeads = new HashSet<>();
+        for (int e = 0; e < exceptions.size(); e++) {
+            GraphException ex = exceptions.get(e);
+
+            GraphPart exStartPart = graph.searchPart(ex.start, allBlocks);
+            knownHeads.add(exStartPart);
+
+            writer.append("ex_" + e + "_begin [shape=\"circle\"  label=\"try " + e + " begin\"];\r\n");
+            writer.append("ex_" + e + "_begin:se -> " + getBlockName(graphSource, exStartPart) + ":nw [style=dashed arrowhead=none];\r\n");
+
+            GraphPart exTargetPart = graph.searchPart(ex.target, allBlocks);
+            knownHeads.add(exTargetPart);
+
+            writer.append("ex_" + e + "_target [shape=\"circle\"  label=\"try " + e + " target\"];\r\n");
+            writer.append("ex_" + e + "_target -> " + getBlockName(graphSource, exTargetPart) + "[style=dashed];\r\n");
+
+            int end = ex.end - 1;
+
+            GraphPart exEndPart = null;
+            while (end >= 0) {
+                exEndPart = graph.searchPart(end, allBlocks);
+                if (exEndPart != null) {
+                    break;
+                }
+                end--;
             }
-            writer.append(headName + " [shape=\"circle\"]\r\n");
-            writer.append(headName + ":s -> " + getBlockName(graphSource, head) + ":n;\r\n");
+            if (exEndPart != null) {
+                writer.append("ex_" + e + "_end [shape=\"circle\"  label=\"try " + e + " end\"]\r\n");
+                writer.append(getBlockName(graphSource, exEndPart) + ":sw -> ex_" + e + "_end:ne [style=dashed dir=back arrowtail=none];\r\n");
+            }
         }
+
+        int startPos = 0;
+        for (GraphPart startPart : heads) {
+            if (knownHeads.contains(startPart)) {
+                continue;
+            }
+            startPos++;
+            String headName = startPos > 1 ? "start" + startPos : "start";
+
+            writer.append(headName + " [shape=\"circle\"];\r\n");
+            writer.append(headName + ":s -> " + getBlockName(graphSource, startPart) + ";\r\n");
+        }
+
         for (GraphPart part : allBlocks) {
             StringBuilder blkCodeBuilder = new StringBuilder();
             for (int j = part.start; j <= part.end; j++) {
                 if (j < graphSource.size()) {
                     if (knownAddresses.contains(graphSource.get(j).getAddress())) {
-                        blkCodeBuilder.append("loc").append(Helper.formatAddress(graphSource.get(j).getAddress())).append(":\r\n");
+                        blkCodeBuilder.append("ofs").append(Helper.formatAddress(graphSource.get(j).getAddress())).append(":\r\n");
                     }
                     String insStr = graphSource.insToString(j);
-                    if (insStr.length() > INS_LEN_LIMIT) {
-                        insStr = insStr.substring(0, INS_LEN_LIMIT - ELIPSIS.length()) + ELIPSIS;
-                    }
                     blkCodeBuilder.append(insStr).append("\r\n");
                 }
             }
             String labelStr = blkCodeBuilder.toString();
-            labelStr = labelStr.replace("\"", "\\\"");
-            labelStr = labelStr.replace("\r\n", "\\l");
+            if (Configuration.showLineNumbersInPCodeGraphvizGraph.get()) {
+                labelStr = ";lines " + part.toString() + "\r\n" + labelStr;
+            }
+            labelStr = hilight(labelStr, graph);
+
             String partBlockName = getBlockName(graphSource, part);
             String blkStyle = BLOCK_STYLE;
+
             if (isEndOfScript(graphSource, part)) {
                 blkStyle = "shape=\"circle\"";
                 labelStr = "FINISH";
             }
-            writer.append(partBlockName + " [" + blkStyle + " label=\"" + labelStr + "\"];\r\n");
+
+            writer.append(partBlockName + " [" + blkStyle + " fontname=\"Courier New\" label=<<TABLE BORDER=\"0\" CELLBORDER=\"0\" CELLSPACING=\"0\"><TR><TD BALIGN=\"LEFT\">" + labelStr + "</TD></TR></TABLE>>];\r\n");
             for (int n = 0; n < part.nextParts.size(); n++) {
                 GraphPart next = part.nextParts.get(n);
                 String orientation = ":s";
+                String color = null;
                 if (part.nextParts.size() == 2 && n == 0) {
-                    orientation = "";
+                    orientation = ":sw";
+                    color = "green4";
                 }
                 if (part.nextParts.size() == 2 && n == 1) {
-                    orientation = "";
+                    orientation = ":se";
+                    color = "red";
                 }
                 String nextBlockName = getBlockName(graphSource, next);
-                writer.append(partBlockName + orientation + " -> " + nextBlockName + ":n;\r\n");
+                writer.append(partBlockName + orientation + " -> " + nextBlockName + ":n" + (color != null ? "[color=\"" + color + "\"]" : "") + ";\r\n");
             }
         }
+    }
+
+    private static String hilight(AbstractLexer lexer, String code) {
+        Token t;
+        StringBuilder sb = new StringBuilder();
+        int lineStart = 0;
+        boolean afterElipsis = false;
+        int rawLen = 0;
+        try {
+            while ((t = lexer.yylex()) != null) {
+                if (t.type == TokenType.NEWLINE) {
+                    sb.append("<BR />");
+                    afterElipsis = false;
+                    lineStart = rawLen;
+                    continue;
+                }
+                if (afterElipsis) {
+                    continue;
+                }
+                String color = null;
+                boolean bold = false;
+                switch (t.type) {
+                    case KEYWORD:
+                        color = "#0000ff";
+                        bold = true;
+                        break;
+                    case KEYWORD2:
+                        color = "#007f7f";
+                        bold = true;
+                        break;
+                    case OPERATOR:
+                        color = "#7f007f";
+                        break;
+                    case STRING:
+                        color = "#cc6600";
+                        break;
+                    case COMMENT:
+                    case COMMENT2:
+                        color = "#339933";
+                        break;
+                }
+
+                int tlen = t.length;
+                boolean tooLong = false;
+                int lenFromStartLine = rawLen - lineStart;
+                if (lenFromStartLine + tlen > INS_LEN_LIMIT) {
+                    int newtlen = INS_LEN_LIMIT - lenFromStartLine;
+                    tlen = newtlen;
+                    tooLong = true;
+                }
+
+                if (color != null && tlen > 0) {
+                    sb.append("<FONT color=\"" + color + "\">");
+                }
+                if (bold && tlen > 0) {
+                    sb.append("<B>");
+                }
+
+                rawLen += tlen;
+                String s = code.substring(t.start, t.start + tlen);
+                s = s.replace("&", "&amp;");
+                s = s.replace("[", "&#x5B;");
+                s = s.replace("]", "&#x5D;"); //ends graphviz parameters block!
+                s = s.replace("<", "&lt;");
+                s = s.replace(">", "&gt;");
+                s = s.replace("\\", "\\\\");
+                s = s.replace("\r\n", "<BR />");
+                sb.append(s);
+                if (bold && tlen > 0) {
+                    sb.append("</B>");
+                }
+                if (color != null && tlen > 0) {
+                    sb.append("</FONT>");
+                }
+                if (tooLong) {
+                    sb.append(ELIPSIS);
+                    afterElipsis = true;
+                }
+            }
+        } catch (IOException ex) {
+            return code;
+        }
+        return sb.toString();
+    }
+
+    private String hilight(String code, Graph graph) {
+        AbstractLexer lexer;
+        if (graph instanceof ActionGraph) {
+            lexer = new FlasmLexer(new StringReader(code));
+        } else {
+            lexer = new Flasm3Lexer(new StringReader(code));
+        }
+        return hilight(lexer, code);
     }
 
     public void export(Graph graph, GraphTextWriter writer) throws InterruptedException {

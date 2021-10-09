@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -29,11 +30,13 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  *
@@ -61,6 +64,12 @@ public class InitVectorAVM2Item extends AVM2Item {
 
     private int allNsSet(AbcIndexing abc) throws CompilationException {
         return NamespaceItem.getCpoolSetIndex(abc, openedNamespaces);
+    }
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(subtype);
+        visitor.visitAll(arguments);
     }
 
     public InitVectorAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem subtype, List<GraphTargetItem> arguments) {
@@ -127,4 +136,34 @@ public class InitVectorAVM2Item extends AVM2Item {
         }
         return ret;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 31 * hash + Objects.hashCode(this.subtype);
+        hash = 31 * hash + Objects.hashCode(this.arguments);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final InitVectorAVM2Item other = (InitVectorAVM2Item) obj;
+        if (!Objects.equals(this.subtype, other.subtype)) {
+            return false;
+        }
+        if (!Objects.equals(this.arguments, other.arguments)) {
+            return false;
+        }
+        return true;
+    }
+
 }

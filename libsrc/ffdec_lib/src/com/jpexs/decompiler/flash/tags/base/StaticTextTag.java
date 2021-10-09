@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import com.jpexs.decompiler.flash.AppResources;
@@ -569,7 +570,7 @@ public abstract class StaticTextTag extends TextTag {
         return true;
     }
 
-    private int getAdvance(FontTag font, int glyphIndex, int textHeight, char c, Character nextChar) {
+    public static int getAdvance(FontTag font, int glyphIndex, int textHeight, char c, Character nextChar) {
         int advance;
         if (font.hasLayout()) {
             int kerningAdjustment = 0;
@@ -585,7 +586,7 @@ public abstract class StaticTextTag extends TextTag {
         return advance;
     }
 
-    private int detectLetterSpacing(TEXTRECORD textRecord, FontTag font, int textHeight) {
+    public static int detectLetterSpacing(TEXTRECORD textRecord, FontTag font, int textHeight) {
         int totalLetterSpacing = 0;
         List<GLYPHENTRY> glyphEntries = textRecord.glyphEntries;
         for (int i = 0; i < glyphEntries.size(); i++) {
@@ -651,7 +652,7 @@ public abstract class StaticTextTag extends TextTag {
     }
 
     @Override
-    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, ColorTransform colorTransform) {
+    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, boolean scaleStrokes, int drawMode) {
         staticTextToImage(swf, textRecords, getTextNum(), image, textMatrix, transformation, colorTransform);
         /*try {
          TextTag originalTag = (TextTag) getOriginalTag();

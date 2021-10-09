@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,7 +27,6 @@ import java.awt.event.MouseEvent;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.border.BevelBorder;
 
 /**
@@ -50,7 +49,7 @@ public final class BinaryPanel extends JPanel {
         super(new BorderLayout());
         this.mainPanel = mainPanel;
 
-        add(new JScrollPane(hexEditor), BorderLayout.CENTER);
+        add(new FasterScrollPane(hexEditor), BorderLayout.CENTER);
 
         JPanel bottomPanel = new JPanel(new BorderLayout());
         JPanel buttonsPanel = new JPanel(new FlowLayout());

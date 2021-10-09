@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,8 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 import com.jpexs.decompiler.flash.abc.avm2.model.DecLocalAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.IntegerValueAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.LocalRegAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.PostDecrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.operations.SubtractAVM2Item;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.ecma.NotCompileTime;
@@ -54,7 +56,20 @@ public class DecLocalIIns extends InstructionDefinition {
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         int regId = ins.operands[0];
-        output.add(new DecLocalAVM2Item(ins, localData.lineStartInstruction, regId));
+        boolean isPostDec = false;
+        if (!stack.isEmpty()) {
+            GraphTargetItem stackTop = stack.peek();
+            if (stackTop instanceof LocalRegAVM2Item) {
+                if (regId == ((LocalRegAVM2Item) stackTop).regIndex) {
+                    stack.pop();
+                    stack.push(new PostDecrementAVM2Item(ins, localData.lineStartInstruction, stackTop));
+                    isPostDec = true;
+                }
+            }
+        }
+        if (!isPostDec) {
+            output.add(new DecLocalAVM2Item(ins, localData.lineStartInstruction, regId));
+        }
         if (localData.localRegs.containsKey(regId)) {
             localData.localRegs.put(regId, new SubtractAVM2Item(ins, localData.lineStartInstruction, localData.localRegs.get(regId), new IntegerValueAVM2Item(ins, localData.lineStartInstruction, 1L)));
         } else {

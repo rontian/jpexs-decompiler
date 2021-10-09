@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,9 @@ import com.jpexs.decompiler.flash.exporters.modes.ShapeExportMode;
 import com.jpexs.decompiler.flash.exporters.settings.ShapeExportSettings;
 import com.jpexs.decompiler.flash.exporters.shape.BitmapExporter;
 import com.jpexs.decompiler.flash.importers.ShapeImporter;
+import com.jpexs.decompiler.flash.importers.svg.css.CssParseException;
+import com.jpexs.decompiler.flash.importers.svg.css.CssParser;
+import com.jpexs.decompiler.flash.importers.svg.css.CssSelectorToXPath;
 import com.jpexs.decompiler.flash.tags.DefineShape4Tag;
 import com.jpexs.decompiler.flash.tags.ExportAssetsTag;
 import com.jpexs.decompiler.flash.tags.Tag;
@@ -67,8 +70,13 @@ import javax.imageio.ImageIO;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
@@ -212,37 +220,121 @@ public class SvgImporter {
         }
     }
 
-    private void processSvgObject(Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Element element, Matrix transform, SvgStyle style) {
+    private void processStyle(Element element) {
+        String styleSheet = element.getTextContent().trim();
+        CssParser cssParser = new CssParser(styleSheet);
+        CssSelectorToXPath selectorToXPath = new CssSelectorToXPath();
+        Document doc = element.getOwnerDocument();
+        try {
+            cssParser.styleshet();
+            XPath xPath = XPathFactory.newInstance().newXPath();
+            for (int i = 0; i < cssParser.getCountRulesets(); i++) {
+                String selector = cssParser.getSelector(i);
+                String xPathExpression = selectorToXPath.css2xpath(selector);
+                try {
+                    NodeList nodeList = (NodeList) xPath.compile(xPathExpression).evaluate(doc, XPathConstants.NODESET);
+                    for (int j = 0; j < nodeList.getLength(); j++) {
+                        Node node = nodeList.item(j);
+                        NamedNodeMap attrs = node.getAttributes();
+                        Node styleAttr = attrs.getNamedItem("ffdec-style");
+                        if (styleAttr != null) {
+                            styleAttr.setNodeValue(styleAttr.getNodeValue() + ";" + "{" + cssParser.getSpecifity(i) + "}" + cssParser.getDeclarations(i));
+                            attrs.setNamedItem(styleAttr);
+                        } else {
+                            Node styleNode = doc.createAttribute("ffdec-style");
+                            styleNode.setNodeValue("{" + cssParser.getSpecifity(i) + "}" + cssParser.getDeclarations(i));
+                            attrs.setNamedItem(styleNode);
+                        }
+                    }
+                } catch (XPathExpressionException ex) {
+                    Logger.getLogger(SvgImporter.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+        } catch (IOException | CssParseException ex) {
+            showWarning("CannotParseCSSStyle", "Cannot parse CSS style: " + ex.getMessage());
+        }
+    }
+
+    private void processDefs(Element element) {
         for (int i = 0; i < element.getChildNodes().getLength(); i++) {
             Node childNode = element.getChildNodes().item(i);
             if (childNode instanceof Element) {
                 Element childElement = (Element) childNode;
                 String tagName = childElement.getTagName();
-                SvgStyle newStyle = new SvgStyle(this, idMap, childElement);
-                Matrix m = Matrix.parseSvgMatrix(childElement.getAttribute("transform"), 1, 1);
-                Matrix m2 = m == null ? transform : transform.concatenate(m);
-                if ("g".equals(tagName)) {
-                    processSvgObject(idMap, shapeNum, shapes, childElement, m2, newStyle);
-                } else if ("path".equals(tagName)) {
-                    processPath(shapeNum, shapes, childElement, m2, newStyle);
-                } else if ("circle".equals(tagName)) {
-                    processCircle(shapeNum, shapes, childElement, m2, newStyle);
-                } else if ("ellipse".equals(tagName)) {
-                    processEllipse(shapeNum, shapes, childElement, m2, newStyle);
-                } else if ("rect".equals(tagName)) {
-                    processRect(shapeNum, shapes, childElement, m2, newStyle);
-                } else if ("line".equals(tagName)) {
-                    processLine(shapeNum, shapes, childElement, m2, newStyle);
-                } else if ("polyline".equals(tagName)) {
-                    processPolyline(shapeNum, shapes, childElement, m2, newStyle);
-                } else if ("polygon".equals(tagName)) {
-                    processPolygon(shapeNum, shapes, childElement, m2, newStyle);
-                } else if ("defs".equals(tagName) || "title".equals(tagName) || "desc".equals(tagName)
-                        || "radialGradient".equals(tagName) || "linearGradient".equals(tagName)) {
-                    // ignore
-                } else {
-                    showWarning(tagName + "tagNotSupported", "The SVG tag '" + tagName + "' is not supported.");
+                if ("style".equals(tagName)) {
+                    processStyle(childElement);
+                } else if ("defs".equals(tagName)) {
+                    processDefs(childElement);
                 }
+            }
+        }
+    }
+
+    private void processSwitch(Element element, Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Matrix transform, SvgStyle style) {
+        for (int i = 0; i < element.getChildNodes().getLength(); i++) {
+            Node childNode = element.getChildNodes().item(i);
+            if (childNode instanceof Element) {
+                Element childElement = (Element) childNode;
+                if (childElement.hasAttribute("requiredExtensions") && !childElement.getAttribute("requiredExtensions").isEmpty()) {
+                    continue;
+                }
+                if (childElement.hasAttribute("systemLanguage")) {
+                    String systemLanguage = childElement.getAttribute("systemLanguage");
+                    if (systemLanguage.equals("en-us") || systemLanguage.equals("en")) {
+                        processElement(childElement, idMap, shapeNum, shapes, transform, style);
+                        return;
+                    }
+                    continue;
+                }
+                processElement(childElement, idMap, shapeNum, shapes, transform, style);
+                return;
+            }
+        }
+    }
+
+    private void processElement(Element element, Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Matrix transform, SvgStyle style) {
+        if (element.hasAttribute("requiredExtensions") && !element.getAttribute("requiredExtensions").isEmpty()) {
+            return;
+        }
+        String tagName = element.getTagName();
+        SvgStyle newStyle = new SvgStyle(this, idMap, element);
+        Matrix m = Matrix.parseSvgMatrix(element.getAttribute("transform"), 1, 1);
+        Matrix m2 = m == null ? transform : transform.concatenate(m);
+        if ("switch".equals(tagName)) {
+            processSwitch(element, idMap, shapeNum, shapes, transform, style);
+        } else if ("style".equals(tagName)) {
+            processStyle(element);
+        } else if ("g".equals(tagName)) {
+            processSvgObject(idMap, shapeNum, shapes, element, m2, newStyle);
+        } else if ("path".equals(tagName)) {
+            processPath(shapeNum, shapes, element, m2, newStyle);
+        } else if ("circle".equals(tagName)) {
+            processCircle(shapeNum, shapes, element, m2, newStyle);
+        } else if ("ellipse".equals(tagName)) {
+            processEllipse(shapeNum, shapes, element, m2, newStyle);
+        } else if ("rect".equals(tagName)) {
+            processRect(shapeNum, shapes, element, m2, newStyle);
+        } else if ("line".equals(tagName)) {
+            processLine(shapeNum, shapes, element, m2, newStyle);
+        } else if ("polyline".equals(tagName)) {
+            processPolyline(shapeNum, shapes, element, m2, newStyle);
+        } else if ("polygon".equals(tagName)) {
+            processPolygon(shapeNum, shapes, element, m2, newStyle);
+        } else if ("defs".equals(tagName)) {
+            processDefs(element);
+        } else if ("title".equals(tagName) || "desc".equals(tagName)
+                || "radialGradient".equals(tagName) || "linearGradient".equals(tagName)) {
+            // ignore
+        } else {
+            showWarning(tagName + "tagNotSupported", "The SVG tag '" + tagName + "' is not supported.");
+        }
+    }
+    private void processSvgObject(Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Element element, Matrix transform, SvgStyle style) {
+        for (int i = 0; i < element.getChildNodes().getLength(); i++) {
+            Node childNode = element.getChildNodes().item(i);
+            if (childNode instanceof Element) {
+                Element childElement = (Element) childNode;
+                processElement(childElement, idMap, shapeNum, shapes, transform, style);
             }
         }
     }
@@ -341,7 +433,11 @@ public class SvgImporter {
 
                     p = transform2.transform(x, y);
                     serh.deltaX = (int) Math.round(p.x - prevPoint.x);
-                    prevPoint = new Point(prevPoint.x + serh.deltaX, prevPoint.y/* + serh.deltaY*/);
+                    //deltaX is not enough as transformation can make deltaY difference
+                    serh.deltaY = (int) Math.round(p.y - prevPoint.y);
+                    prevPoint = new Point(prevPoint.x + serh.deltaX, prevPoint.y + serh.deltaY);
+                    serh.generalLineFlag = true;
+                    serh.simplify();
                     newRecords.add(serh);
                     break;
                 case 'V':
@@ -349,9 +445,13 @@ public class SvgImporter {
                     y = command.params[0];
 
                     p = transform2.transform(x, y);
+
+                    //deltaY is not enough as transformation can make deltaX difference
+                    serv.deltaX = (int) Math.round(p.x - prevPoint.x);
                     serv.deltaY = (int) Math.round(p.y - prevPoint.y);
-                    prevPoint = new Point(prevPoint.x/* + serv.deltaX*/, prevPoint.y + serv.deltaY);
-                    serv.vertLineFlag = true;
+                    prevPoint = new Point(prevPoint.x + serv.deltaX, prevPoint.y + serv.deltaY);
+                    serv.generalLineFlag = true;
+                    serv.simplify();
                     newRecords.add(serv);
                     break;
                 case 'Q':
@@ -395,11 +495,6 @@ public class SvgImporter {
 
                     p = transform2.transform(x, y);
 
-                    //StraightEdgeRecord serc = new StraightEdgeRecord();
-                    //serc.generalLineFlag = true;
-                    //serc.deltaX = (int) Math.round(p.x - prevPoint.x);
-                    //serc.deltaY = (int) Math.round(p.y - prevPoint.y);
-                    //newRecords.add(serc);
                     List<Double> quadCoordinates = new CubicToQuad().cubicToQuad(pStart.x, pStart.y, pControl1.x, pControl1.y, pControl2.x, pControl2.y, p.x, p.y, 1);
                     for (int i = 2; i < quadCoordinates.size();) {
                         CurvedEdgeRecord cerc = new CurvedEdgeRecord();
@@ -755,7 +850,7 @@ public class SvgImporter {
         double cy = attr.length() > 0 ? parseCoordinate(attr, viewBox.height) : 0;
 
         attr = childElement.getAttribute("r");
-        double r = attr.length() > 0 ? parseLength(attr, viewBox.width/* todo: how much is 100%? */) : 0;
+        double r = attr.length() > 0 ? parseLength(attr, (viewBox.width + viewBox.height) / 2) : 0;
 
         processEllipse(shapeNum, shapes, transform, style, cx, cy, r, r);
     }
@@ -1036,6 +1131,7 @@ public class SvgImporter {
 
     //Stub for w3 test. TODO: refactor and move to test directory. It's here because of easy access - compiling single file
     private static void svgTest(String name) throws IOException, InterruptedException {
+        System.err.println("running test " + name);
         if (!new File(name + ".original.svg").exists()) {
             URL svgUrl = new URL("http://www.w3.org/Graphics/SVG/Test/20061213/svggen/" + name + ".svg");
             byte[] svgData = Helper.readStream(svgUrl.openStream());
@@ -1049,10 +1145,10 @@ public class SvgImporter {
         String svgDataS = Helper.readTextFile(name + ".orig.svg");
         SWF swf = new SWF();
         DefineShape4Tag st = new DefineShape4Tag(swf);
-        st = (DefineShape4Tag) (new SvgImporter().importSvg(st, svgDataS));
+        st = (DefineShape4Tag) (new SvgImporter().importSvg(st, svgDataS, false));
         swf.addTag(st);
         SerializableImage si = new SerializableImage(480, 360, BufferedImage.TYPE_4BYTE_ABGR);
-        BitmapExporter.export(swf, st.shapes, Color.yellow, si, new Matrix(), new Matrix(), null);
+        BitmapExporter.export(swf, st.shapes, Color.yellow, si, new Matrix(), new Matrix(), null, true);
         List<Tag> li = new ArrayList<>();
         li.add(st);
         ImageIO.write(si.getBufferedImage(), "PNG", new File(name + ".imported.png"));
@@ -1063,7 +1159,7 @@ public class SvgImporter {
         swf.assignExportNamesToSymbols();
         st.shapeBounds.Xmax = (int) (si.getWidth() * SWF.unitDivisor);
         st.shapeBounds.Ymax = (int) (si.getHeight() * SWF.unitDivisor);
-        new ShapeExporter().exportShapes(null, "./outex/", swf, new ReadOnlyTagList(li), new ShapeExportSettings(ShapeExportMode.SVG, 1), null);
+        new ShapeExporter().exportShapes(null, "./outex/", swf, new ReadOnlyTagList(li), new ShapeExportSettings(ShapeExportMode.SVG, 1), null, 1);
     }
 
     //Test for SVG
@@ -1302,13 +1398,13 @@ public class SvgImporter {
 //        svgTest("struct-use-01-t");
 //        svgTest("struct-use-03-t");
 //        svgTest("struct-use-05-b");
-//        svgTest("styling-css-01-b");
-//        svgTest("styling-css-02-b");
-//        svgTest("styling-css-03-b");
-//        svgTest("styling-css-04-f");
+        svgTest("styling-css-01-b");
+        svgTest("styling-css-02-b");
+        svgTest("styling-css-03-b");
+        svgTest("styling-css-04-f");
 //        svgTest("styling-css-05-b");
 //        svgTest("styling-css-06-b");
-//        svgTest("styling-inherit-01-b");
+        svgTest("styling-inherit-01-b");
 //        svgTest("styling-pres-01-t");
 //        svgTest("text-align-01-b");
 //        svgTest("text-align-02-b");
@@ -1342,7 +1438,7 @@ public class SvgImporter {
 //        svgTest("text-tspan-01-b");
 //        svgTest("text-ws-01-t");
 //        svgTest("text-ws-02-t");
-//        svgTest("types-basicDOM-01-b");
+//        svgTest("types-basicDOM-01-b");            
     }
 
     private void applyFillGradients(SvgFill fill, FILLSTYLE fillStyle, RECT bounds, StyleChangeRecord scr, Matrix transform, int shapeNum, SvgStyle style) {
@@ -1358,70 +1454,71 @@ public class SvgImporter {
                 SvgLinearGradient lgfill = (SvgLinearGradient) fill;
                 fillStyle.fillStyleType = FILLSTYLE.LINEAR_GRADIENT;
                 fillStyle.gradient = new GRADIENT();
-                double x1 = parseCoordinate(lgfill.x1, 1/* todo: how much is 100%? */);
-                double y1 = parseCoordinate(lgfill.y1, 1/* todo: how much is 100%? */);
-                double x2 = parseCoordinate(lgfill.x2, 1/* todo: how much is 100%? */);
-                double y2 = parseCoordinate(lgfill.y2, 1/* todo: how much is 100%? */);
-
-                x1 = x1 * SWF.unitDivisor;
-                y1 = y1 * SWF.unitDivisor;
-                x2 = x2 * SWF.unitDivisor;
-                y2 = y2 * SWF.unitDivisor;
-
-                Matrix boundingBoxMatrix = new Matrix();
-                if (lgfill.gradientUnits == SvgGradientUnits.OBJECT_BOUNDING_BOX) {
-                    boundingBoxMatrix.scaleX = (bounds.Xmax - bounds.Xmin) / SWF.unitDivisor;
-                    boundingBoxMatrix.rotateSkew0 = 0;
-                    boundingBoxMatrix.rotateSkew1 = 0;
-                    boundingBoxMatrix.scaleY = (bounds.Ymax - bounds.Ymin) / SWF.unitDivisor;
-                    boundingBoxMatrix.translateX = bounds.Xmin;
-                    boundingBoxMatrix.translateY = bounds.Ymin;
-                }
+                double x1 = parseCoordinate(lgfill.x1, 1);
+                double y1 = parseCoordinate(lgfill.y1, 1);
+                double x2 = parseCoordinate(lgfill.x2, 1);
+                double y2 = parseCoordinate(lgfill.y2, 1);
 
                 Matrix xyMatrix = new Matrix();
-                xyMatrix.scaleX = x2 - x1;
-                xyMatrix.rotateSkew0 = y2 - y1;
+                xyMatrix.scaleX = (x2 - x1) * SWF.unitDivisor;
+                xyMatrix.rotateSkew0 = (y2 - y1) * SWF.unitDivisor;
                 xyMatrix.rotateSkew1 = -xyMatrix.rotateSkew0;
                 xyMatrix.scaleY = xyMatrix.scaleX;
 
-                xyMatrix = xyMatrix.preConcatenate(boundingBoxMatrix);
+                Matrix gmatrix = new Matrix();
+                if (lgfill.gradientUnits == SvgGradientUnits.OBJECT_BOUNDING_BOX) {
+                    gmatrix.scaleX = (bounds.Xmax - bounds.Xmin) / SWF.unitDivisor;
+                    gmatrix.rotateSkew0 = 0;
+                    gmatrix.rotateSkew1 = 0;
+                    gmatrix.scaleY = (bounds.Ymax - bounds.Ymin) / SWF.unitDivisor;
+                    gmatrix.translateX = bounds.Xmin;
+                    gmatrix.translateY = bounds.Ymin;
+                    x1 *= bounds.getWidth();
+                    y1 *= bounds.getHeight();
+                } else {
+                    gmatrix = new Matrix(fillStyle.gradientMatrix);
+                    x1 *= SWF.unitDivisor;
+                    y1 *= SWF.unitDivisor;
+                }
 
                 Matrix zeroStartMatrix = Matrix.getTranslateInstance(0.5, 0);
-
                 Matrix scaleMatrix = Matrix.getScaleInstance(1 / 16384.0 / 2);
                 Matrix transMatrix = Matrix.getTranslateInstance(x1, y1);
 
                 Matrix tMatrix = new Matrix();
-                tMatrix = tMatrix.preConcatenate(scaleMatrix);
-                tMatrix = tMatrix.preConcatenate(zeroStartMatrix);
-                tMatrix = tMatrix.preConcatenate(xyMatrix);
-
-                tMatrix = tMatrix.preConcatenate(transMatrix);
-                Point p1 = tMatrix.transform(new Point(-16384, 0));
-                Point p2 = tMatrix.transform(new Point(16384, 0));
-
-                tMatrix = tMatrix.preConcatenate(new Matrix(fillStyle.gradientMatrix));
+                tMatrix = tMatrix
+                        .concatenate(transMatrix)
+                        .concatenate(gmatrix)
+                        .concatenate(xyMatrix)
+                        .concatenate(zeroStartMatrix)
+                        .concatenate(scaleMatrix);
                 fillStyle.gradientMatrix = tMatrix.toMATRIX();
             } else if (fill instanceof SvgRadialGradient) {
                 SvgRadialGradient rgfill = (SvgRadialGradient) fill;
-                double cx = parseCoordinate(rgfill.cx, 1/* todo: how much is 100%? */);
-                double cy = parseCoordinate(rgfill.cy, 1/* todo: how much is 100%? */);
-                double r = parseLength(rgfill.r, 1/* todo: how much is 100%? */);
+                double cx = parseCoordinate(rgfill.cx, 1);
+                double cy = parseCoordinate(rgfill.cy, 1);
+                double r = parseLength(rgfill.r, 1);
 
-                Matrix boundingBoxMatrix = new Matrix();
+                Matrix gmatrix;
                 if (rgfill.gradientUnits == SvgGradientUnits.OBJECT_BOUNDING_BOX) {
-                    boundingBoxMatrix.scaleX = (bounds.Xmax - bounds.Xmin) / SWF.unitDivisor;
-                    boundingBoxMatrix.rotateSkew0 = 0;
-                    boundingBoxMatrix.rotateSkew1 = 0;
-                    boundingBoxMatrix.scaleY = (bounds.Ymax - bounds.Ymin) / SWF.unitDivisor;
-                    boundingBoxMatrix.translateX = bounds.Xmin;
-                    boundingBoxMatrix.translateY = bounds.Ymin;
+                    gmatrix = new Matrix();
+                    gmatrix.scaleX = (bounds.Xmax - bounds.Xmin) / SWF.unitDivisor;
+                    gmatrix.rotateSkew0 = 0;
+                    gmatrix.rotateSkew1 = 0;
+                    gmatrix.scaleY = 1 / SWF.unitDivisor;
+                    gmatrix.scaleY = (bounds.Ymax - bounds.Ymin) / SWF.unitDivisor;
+                    gmatrix.translateX = bounds.Xmin;
+                    gmatrix.translateY = bounds.Ymin;
+                } else {
+                    gmatrix = new Matrix(fillStyle.gradientMatrix);
                 }
+                gmatrix.translate(SWF.unitDivisor * cx, SWF.unitDivisor * cy);
+                gmatrix = gmatrix.concatenate(Matrix.getScaleInstance(r / 819.2));
 
-                fillStyle.gradientMatrix = Matrix.getTranslateInstance(SWF.unitDivisor * cx, SWF.unitDivisor * cy).concatenate(new Matrix(fillStyle.gradientMatrix)).concatenate(Matrix.getScaleInstance(r / 819.2)).preConcatenate(boundingBoxMatrix).toMATRIX();
+                fillStyle.gradientMatrix = gmatrix.toMATRIX();
 
-                double fx = parseCoordinate(rgfill.fx, 1/* todo: how much is 100%? */);
-                double fy = parseCoordinate(rgfill.fy, 1/* todo: how much is 100%? */);
+                double fx = parseCoordinate(rgfill.fx, 1);
+                double fy = parseCoordinate(rgfill.fy, 1);
                 if (!rgfill.fx.equals(rgfill.cx) || !rgfill.fy.equals(rgfill.cy)) {
                     fillStyle.fillStyleType = FILLSTYLE.FOCAL_RADIAL_GRADIENT;
                     fillStyle.gradient = new FOCALGRADIENT();

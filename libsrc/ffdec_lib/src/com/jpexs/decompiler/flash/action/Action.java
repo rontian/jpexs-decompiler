@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,26 +21,18 @@ import com.jpexs.decompiler.flash.BaseLocalData;
 import com.jpexs.decompiler.flash.DisassemblyListener;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFOutputStream;
-import com.jpexs.helpers.Reference;
 import com.jpexs.decompiler.flash.action.deobfuscation.ActionDeobfuscator;
 import com.jpexs.decompiler.flash.action.model.ActionItem;
-import com.jpexs.decompiler.flash.action.model.CallMethodActionItem;
 import com.jpexs.decompiler.flash.action.model.ConstantPool;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
-import com.jpexs.decompiler.flash.action.model.ExtendsActionItem;
 import com.jpexs.decompiler.flash.action.model.FunctionActionItem;
 import com.jpexs.decompiler.flash.action.model.GetMemberActionItem;
 import com.jpexs.decompiler.flash.action.model.GetPropertyActionItem;
 import com.jpexs.decompiler.flash.action.model.GetVariableActionItem;
-import com.jpexs.decompiler.flash.action.model.ImplementsOpActionItem;
-import com.jpexs.decompiler.flash.action.model.NewObjectActionItem;
 import com.jpexs.decompiler.flash.action.model.SetMemberActionItem;
 import com.jpexs.decompiler.flash.action.model.SetPropertyActionItem;
 import com.jpexs.decompiler.flash.action.model.SetVariableActionItem;
 import com.jpexs.decompiler.flash.action.model.StoreRegisterActionItem;
-import com.jpexs.decompiler.flash.action.model.TemporaryRegister;
-import com.jpexs.decompiler.flash.action.model.clauses.ClassActionItem;
-import com.jpexs.decompiler.flash.action.model.clauses.InterfaceActionItem;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
 import com.jpexs.decompiler.flash.action.parser.pcode.ASMParsedSymbol;
 import com.jpexs.decompiler.flash.action.parser.pcode.FlasmLexer;
@@ -66,7 +58,6 @@ import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.NulWriter;
 import com.jpexs.decompiler.flash.helpers.SWFDecompilerPlugin;
-import com.jpexs.decompiler.flash.helpers.collections.MyEntry;
 import com.jpexs.decompiler.flash.tags.DoInitActionTag;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.decompiler.graph.Graph;
@@ -77,15 +68,12 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateException;
 import com.jpexs.decompiler.graph.TranslateStack;
 import com.jpexs.decompiler.graph.model.CommentItem;
-import com.jpexs.decompiler.graph.model.IfItem;
 import com.jpexs.decompiler.graph.model.LocalData;
-import com.jpexs.decompiler.graph.model.NotItem;
-import com.jpexs.decompiler.graph.model.PopItem;
-import com.jpexs.decompiler.graph.model.PushItem;
 import com.jpexs.decompiler.graph.model.ScriptEndItem;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.CancellableWorker;
 import com.jpexs.helpers.Helper;
+import com.jpexs.helpers.Reference;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,6 +114,8 @@ public abstract class Action implements GraphSourceItem {
     protected int actionLength;
 
     private long address;
+
+    private long virtualAddress = -1;
 
     @Override
     public long getLineOffset() {
@@ -878,6 +868,7 @@ public abstract class Action implements GraphSourceItem {
             throw ex;
         } catch (Exception | OutOfMemoryError | StackOverflowError ex) {
 
+            ex.printStackTrace();
             convertException = ex;
             Throwable cause = ex.getCause();
             if (ex instanceof ExecutionException && cause instanceof Exception) {
@@ -1231,5 +1222,15 @@ public abstract class Action implements GraphSourceItem {
     @Override
     public String getFile() {
         return null;
+    }
+
+    @Override
+    public long getVirtualAddress() {
+        return virtualAddress;
+    }
+
+    @Override
+    public void setVirtualAddress(long virtualAddress) {
+        this.virtualAddress = virtualAddress;
     }
 }

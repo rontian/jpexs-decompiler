@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.timeline;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -80,6 +81,8 @@ public class DepthState {
 
     public boolean motionTween = false;
 
+    public boolean hasImage = false;
+
     private static AtomicLong lastInstanceId = new AtomicLong(0);
 
     public static long getNewInstanceId() {
@@ -118,6 +121,11 @@ public class DepthState {
         }
     }
 
+    public void setMATRIX(MATRIX matrix) {
+        this.matrix = matrix;
+        this.placeObjectTag.setMatrix(matrix);
+    }
+
     public boolean cacheAsBitmap() {
         return (placeObjectTag != null && placeObjectTag.cacheAsBitmap())
                 || (filters != null && filters.size() > 0);
@@ -132,10 +140,10 @@ public class DepthState {
             return new PlaceObject2Tag(swf, false, depth, characterId, matrix, cxForm, ratio, instanceName, clipDepth, clipActions);
         } else if (minPlaceObjectNum == 3) {
             CXFORMWITHALPHA cxForm = colorTransForm == null ? null : new CXFORMWITHALPHA(colorTransForm);
-            return new PlaceObject3Tag(swf, false, depth, null/*todo: className*/, characterId, matrix, cxForm, ratio, instanceName, clipDepth, filters, blendMode, cacheAsBitmap ? 1 : 0, isVisible ? 1 : 0, backGroundColor, clipActions);
+            return new PlaceObject3Tag(swf, false, depth, null/*todo: className*/, characterId, matrix, cxForm, ratio, instanceName, clipDepth, filters, blendMode, cacheAsBitmap ? 1 : 0, isVisible ? 1 : 0, backGroundColor, clipActions, hasImage);
         }
 
         CXFORMWITHALPHA cxForm = colorTransForm == null ? null : new CXFORMWITHALPHA(colorTransForm);
-        return new PlaceObject4Tag(swf, false, depth, null/*todo: className*/, characterId, matrix, cxForm, ratio, instanceName, clipDepth, filters, blendMode, cacheAsBitmap ? 1 : 0, isVisible ? 1 : 0, backGroundColor, clipActions, null);
+        return new PlaceObject4Tag(swf, false, depth, null/*todo: className*/, characterId, matrix, cxForm, ratio, instanceName, clipDepth, filters, blendMode, cacheAsBitmap ? 1 : 0, isVisible ? 1 : 0, backGroundColor, clipActions, null, hasImage);
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2016-2018 JPEXS
+ *  Copyright (C) 2016-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,9 @@ package com.jpexs.decompiler.flash.gui.generictageditors;
 import com.jpexs.decompiler.flash.amf.amf3.Amf3Value;
 import com.jpexs.decompiler.flash.exporters.amf.amf3.Amf3Exporter;
 import com.jpexs.decompiler.flash.gui.AppStrings;
+import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.View;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.gui.editor.LineMarkedEditorPane;
 import com.jpexs.decompiler.flash.importers.amf.amf3.Amf3Importer;
 import com.jpexs.decompiler.flash.importers.amf.amf3.Amf3ParseException;
@@ -40,7 +42,6 @@ import java.util.Timer;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
@@ -144,12 +145,12 @@ public class Amf3ValueEditor extends JPanel implements GenericTagEditor, FullSiz
         txthelp.setText(AppStrings.translate("generic.editor.amf3.help").replace("%scalar_samples%", SCALAR_SAMPLES).replace("%nonscalar_samples%", NONSCALAR_SAMPLES).replace("%reference_sample%", REFERENCE_SAMPLE));
         txthelp.setEditable(false);
         helpButton.addActionListener((ActionEvent e) -> {
-            View.showMessageDialog(null, txthelp);
+            ViewMessages.showMessageDialog(this, txthelp);
         });
         titlePanel.add(helpButton, BorderLayout.EAST);
         add(titlePanel, BorderLayout.NORTH);
 
-        add(new JScrollPane(editor), BorderLayout.CENTER);
+        add(new FasterScrollPane(editor), BorderLayout.CENTER);
         add(errorLabel, BorderLayout.SOUTH);
         errorLabel.setBackground(Color.red);
         errorLabel.setForeground(Color.white);

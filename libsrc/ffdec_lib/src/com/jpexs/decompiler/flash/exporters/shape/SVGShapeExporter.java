@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.shape;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -99,9 +100,7 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
         exporter.addToDefs(gradient);
     }
 
-    @Override
-    public void beginBitmapFill(int bitmapId, Matrix matrix, boolean repeat, boolean smooth, ColorTransform colorTransform) {
-        finalizePath();
+    private String getPattern(int bitmapId, Matrix matrix, ColorTransform colorTransform) {
         ImageTag image = swf.getImage(bitmapId);
         if (image != null) {
             SerializableImage img = image.getImageCached();
@@ -117,7 +116,7 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
                 ImageFormat format = image.getImageFormat();
                 byte[] imageData = Helper.readStream(image.getImageData());
                 String base64ImgData = Helper.byteArrayToBase64String(imageData);
-                path.setAttribute("style", "fill:url(#" + patternId + ")");
+
                 Element pattern = exporter.createElement("pattern");
                 pattern.setAttribute("id", patternId);
                 pattern.setAttribute("patternUnits", "userSpaceOnUse");
@@ -134,10 +133,20 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
                 imageElement.setAttribute("xlink:href", "data:image/" + format + ";base64," + base64ImgData);
                 pattern.appendChild(imageElement);
                 exporter.addToGroup(pattern);
-                return;
+                return patternId;
             }
         }
+        return null;
+    }
 
+    @Override
+    public void beginBitmapFill(int bitmapId, Matrix matrix, boolean repeat, boolean smooth, ColorTransform colorTransform) {
+        finalizePath();
+        String patternId = getPattern(bitmapId, matrix, colorTransform);
+        if (patternId != null) {
+            path.setAttribute("style", "fill:url(#" + patternId + ")");
+            return;
+        }
         path.setAttribute("fill", "#ff0000");
     }
 
@@ -175,8 +184,8 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
                 path.setAttribute("stroke-linejoin", "round");
                 break;
             default:
-                path.setAttribute("stroke-linejoin", "miter");
-                if (miterLimit >= 1 && miterLimit != 4f) {
+                path.setAttribute("stroke-linejoin", "miter-clip");
+                if (miterLimit >= 1) {
                     path.setAttribute("stroke-miterlimit", Double.toString(miterLimit));
                 }
                 break;
@@ -200,6 +209,15 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
         path.setAttribute("stroke", "url(#gradient" + id + ")");
         path.setAttribute("fill", "none");
         exporter.addToDefs(gradient);
+    }
+
+    @Override
+    public void lineBitmapStyle(int bitmapId, Matrix matrix, boolean repeat, boolean smooth, ColorTransform colorTransform) {
+        String patternId = getPattern(bitmapId, matrix, colorTransform);
+        if (patternId != null) {
+            path.setAttribute("stroke", "url(#" + patternId + ")");
+            return;
+        }
     }
 
     @Override

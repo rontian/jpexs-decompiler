@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -32,6 +32,15 @@ public enum TreeNodeType {
     SPRITE,
     BUTTON,
     AS,
+    AS_CLASS,
+    AS_INTERFACE,
+    AS_FRAME,
+    AS_FUNCTION,
+    AS_VAR,
+    AS_CONST,
+    AS_BUTTON,
+    AS_CLIP,
+    AS_INIT,
     PACKAGE,
     FRAME,
     SHOW_FRAME,

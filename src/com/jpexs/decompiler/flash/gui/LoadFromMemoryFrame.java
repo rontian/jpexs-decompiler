@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -54,7 +54,6 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
-import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.SwingWorker;
@@ -319,7 +318,7 @@ public class LoadFromMemoryFrame extends AppFrame {
         cnt.setLayout(new BorderLayout());
 
         JPanel leftPanel = new JPanel(new BorderLayout());
-        leftPanel.add(new JScrollPane(list), BorderLayout.CENTER);
+        leftPanel.add(new FasterScrollPane(list), BorderLayout.CENTER);
         JPanel leftButtonsPanel = new JPanel(new FlowLayout());
         JButton selectButton = new JButton(translate("button.select"));
         selectButton.addActionListener(this::selectProcessButtonActionPerformed);
@@ -330,7 +329,7 @@ public class LoadFromMemoryFrame extends AppFrame {
         leftPanel.add(leftButtonsPanel, BorderLayout.SOUTH);
 
         JPanel rightPanel = new JPanel(new BorderLayout());
-        rightPanel.add(new JScrollPane(tableRes), BorderLayout.CENTER);
+        rightPanel.add(new FasterScrollPane(tableRes), BorderLayout.CENTER);
         JPanel rightButtonsPanel = new JPanel(new FlowLayout());
         JButton openButton = new JButton(translate("button.open"));
         openButton.addActionListener(this::openSwfButtonActionPerformed);
@@ -399,9 +398,7 @@ public class LoadFromMemoryFrame extends AppFrame {
                 });
             }
             fc.setAcceptAllFileFilterUsed(false);
-            JFrame f = new JFrame();
-            View.setWindowIcon(f);
-            if (fc.showSaveDialog(f) == JFileChooser.APPROVE_OPTION) {
+            if (fc.showSaveDialog(LoadFromMemoryFrame.this) == JFileChooser.APPROVE_OPTION) {
                 File file = Helper.fixDialogFile(fc.getSelectedFile());
                 try {
                     if (selected.length == 1) {
@@ -419,7 +416,7 @@ public class LoadFromMemoryFrame extends AppFrame {
                     }
                     Configuration.lastSaveDir.set(file.getParentFile().getAbsolutePath());
                 } catch (IOException ex) {
-                    View.showMessageDialog(null, translate("error.file.write"));
+                    ViewMessages.showMessageDialog(this, translate("error.file.write"));
                 }
             }
         }

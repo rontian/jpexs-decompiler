@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,12 @@ import com.jpexs.decompiler.flash.SWC;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.ZippedSWFBundle;
 import com.jpexs.decompiler.flash.abc.ScriptPack;
+import com.jpexs.decompiler.flash.abc.types.traits.Trait;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitClass;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitFunction;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.MainPanel;
 import com.jpexs.decompiler.flash.gui.TreeNodeType;
 import com.jpexs.decompiler.flash.gui.View;
@@ -114,6 +120,8 @@ import com.jpexs.decompiler.flash.treeitems.FolderItem;
 import com.jpexs.decompiler.flash.treeitems.HeaderItem;
 import com.jpexs.decompiler.flash.treeitems.SWFList;
 import com.jpexs.decompiler.flash.treeitems.TreeItem;
+import com.jpexs.decompiler.flash.types.BUTTONCONDACTION;
+import com.jpexs.decompiler.flash.types.CLIPACTIONRECORD;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
@@ -324,11 +332,61 @@ public class TagTree extends JTree {
             return TreeNodeType.BINARY_DATA;
         }
 
+        if (Configuration.useAsTypeIcons.get()) {
+            if (t instanceof DoInitActionTag) {
+                DoInitActionTag doInit = (DoInitActionTag) t;
+                if (doInit.getSwf().getExportName(doInit.spriteId) != null) {
+                    return TreeNodeType.AS_CLASS;
+                }
+                return TreeNodeType.AS_INIT;
+            }
+
+            if (t instanceof CLIPACTIONRECORD) {
+                return TreeNodeType.AS_CLIP;
+            }
+
+            if (t instanceof BUTTONCONDACTION) {
+                return TreeNodeType.AS_BUTTON;
+            }
+
+            if (t instanceof DoActionTag) {
+                return TreeNodeType.AS_FRAME;
+            }
+        }
+
         if (t instanceof ASMSource) {
             return TreeNodeType.AS;
         }
 
         if (t instanceof ScriptPack) {
+            if (Configuration.useAsTypeIcons.get()) {
+                ScriptPack pack = (ScriptPack) t;
+                Trait trait = pack.getPublicTrait();
+                if (trait == null) {
+                    return TreeNodeType.AS;
+                }
+                if (trait instanceof TraitFunction) {
+                    return TreeNodeType.AS_FUNCTION;
+                }
+                if (trait instanceof TraitMethodGetterSetter) {
+                    return TreeNodeType.AS_FUNCTION;
+                }
+                if (trait instanceof TraitSlotConst) {
+                    TraitSlotConst traitSlotConst = (TraitSlotConst) trait;
+                    if (traitSlotConst.isConst()) {
+                        return TreeNodeType.AS_CONST;
+                    } else {
+                        return TreeNodeType.AS_VAR;
+                    }
+                }
+                if (trait instanceof TraitClass) {
+                    TraitClass traitClass = (TraitClass) trait;
+                    if (pack.abc.instance_info.get(traitClass.class_info).isInterface()) {
+                        return TreeNodeType.AS_INTERFACE;
+                    }
+                    return TreeNodeType.AS_CLASS;
+                }
+            }
             return TreeNodeType.AS;
         }
 
@@ -432,12 +490,11 @@ public class TagTree extends JTree {
                 ret = Arrays.asList(DefineBinaryDataTag.ID);
                 break;
             case TagTreeModel.FOLDER_FRAMES:
-                // same as nested tags of DefineSpriteTag?
+                // same as nested tags of DefineSpriteTag but without DefineScalingGrid
                 ret = Arrays.asList(PlaceObjectTag.ID, PlaceObject2Tag.ID, PlaceObject3Tag.ID, PlaceObject4Tag.ID,
                         RemoveObjectTag.ID, RemoveObject2Tag.ID, ShowFrameTag.ID, FrameLabelTag.ID,
                         StartSoundTag.ID, StartSound2Tag.ID, VideoFrameTag.ID,
-                        SoundStreamBlockTag.ID, SoundStreamHeadTag.ID, SoundStreamHead2Tag.ID,
-                        DefineScalingGridTag.ID);
+                        SoundStreamBlockTag.ID, SoundStreamHeadTag.ID, SoundStreamHead2Tag.ID);
                 break;
             case TagTreeModel.FOLDER_OTHERS:
                 ret = Arrays.asList(
@@ -582,7 +639,16 @@ public class TagTree extends JTree {
                 if (nodeType == TreeNodeType.BUTTON) {
                     ret.add(d);
                 }
-                if (nodeType == TreeNodeType.AS) {
+                if (nodeType == TreeNodeType.AS
+                        || nodeType == TreeNodeType.AS_BUTTON
+                        || nodeType == TreeNodeType.AS_CLASS
+                        || nodeType == TreeNodeType.AS_CLIP
+                        || nodeType == TreeNodeType.AS_CONST
+                        || nodeType == TreeNodeType.AS_FRAME
+                        || nodeType == TreeNodeType.AS_FUNCTION
+                        || nodeType == TreeNodeType.AS_INIT
+                        || nodeType == TreeNodeType.AS_INTERFACE
+                        || nodeType == TreeNodeType.AS_VAR) {
                     ret.add(d);
                 }
                 if (nodeType == TreeNodeType.MOVIE) {
@@ -682,6 +748,18 @@ public class TagTree extends JTree {
         }
 
         return sb.toString();
+    }
+
+    public void setExpandPathString(String pathStr) {
+        if (pathStr != null && pathStr.length() > 0) {
+            String[] path = pathStr.split("\\|");
+
+            TreePath tp = View.getTreePathByPathStrings(this, Arrays.asList(path));
+            if (tp != null) {
+                // the current view is the Resources view, otherwise tp is null
+                mainPanel.tagTree.expandPath(tp.getParentPath());
+            }
+        }
     }
 
     public void setSelectionPathString(String pathStr) {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -26,6 +27,7 @@ import com.jpexs.decompiler.flash.abc.types.ConvertData;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.abc.types.Namespace;
+import com.jpexs.decompiler.flash.abc.types.ScriptInfo;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitClass;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitFunction;
@@ -61,6 +63,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -119,6 +122,17 @@ public class ScriptPack extends AS3ClassTreeItem {
         return packageName;
     }
 
+    public Trait getPublicTrait() {        
+        for (int t : traitIndices) {
+            Multiname name = abc.script_info.get(scriptIndex).traits.traits.get(t).getName(abc);
+            Namespace ns = name.getNamespace(abc.constants);
+            if ((ns.kind == Namespace.KIND_PACKAGE) || (ns.kind == Namespace.KIND_PACKAGE_INTERNAL)) {
+                return abc.script_info.get(scriptIndex).traits.traits.get(t);
+            }
+        }
+        return null;
+    }
+
     public String getPathScriptName() {
         String scriptName = "";
         for (int t : traitIndices) {
@@ -175,7 +189,7 @@ public class ScriptPack extends AS3ClassTreeItem {
             }
             ts.add(abc.script_info.get(scriptIndex).traits);
             writer.mark();
-            abc.bodies.get(sinit_bodyIndex).convert(convertData, path +/*packageName +*/ "/.scriptinitializer", exportMode, true, sinit_index, scriptIndex, -1, abc, null, new ScopeStack(), GraphTextWriter.TRAIT_SCRIPT_INITIALIZER, writer, new ArrayList<>(), ts, true);
+            abc.bodies.get(sinit_bodyIndex).convert(convertData, path +/*packageName +*/ "/.scriptinitializer", exportMode, true, sinit_index, scriptIndex, -1, abc, null, new ScopeStack(), GraphTextWriter.TRAIT_SCRIPT_INITIALIZER, writer, new ArrayList<>(), ts, true, new HashSet<>());
             scriptInitializerIsEmpty = !writer.getMark();
 
         }
@@ -204,7 +218,7 @@ public class ScriptPack extends AS3ClassTreeItem {
             if (exportMode != ScriptExportMode.AS_METHOD_STUBS) {
                 if (!scriptInitializerIsEmpty) {
                     writer.startBlock();
-                    abc.bodies.get(bodyIndex).toString(path +/*packageName +*/ "/.scriptinitializer", exportMode, abc, null, writer, new ArrayList<>());
+                    abc.bodies.get(bodyIndex).toString(path +/*packageName +*/ "/.scriptinitializer", exportMode, abc, null, writer, new ArrayList<>(), new HashSet<>());
                     writer.endBlock();
                 } else {
                     writer.append(" ");
@@ -226,6 +240,10 @@ public class ScriptPack extends AS3ClassTreeItem {
             }
 
             Trait trait = traits.get(t);
+
+            if (!(trait instanceof TraitClass)) {
+                writer.startTrait(t);
+            }
             Multiname name = trait.getName(abc);
             Namespace ns = name.getNamespace(abc.constants);
             if ((ns.kind == Namespace.KIND_PACKAGE) || (ns.kind == Namespace.KIND_PACKAGE_INTERNAL)) {
@@ -233,12 +251,14 @@ public class ScriptPack extends AS3ClassTreeItem {
             } else {
                 trait.toString(null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel);
             }
-
+            if (!(trait instanceof TraitClass)) {
+                writer.endTrait();
+            }
             first = false;
         }
     }
 
-    public void toSource(GraphTextWriter writer, final List<Trait> traits, final ConvertData convertData, final ScriptExportMode exportMode, final boolean parallel) throws InterruptedException {
+    public void toSource(GraphTextWriter writer, final List<Trait> traits, final ConvertData convertData, final ScriptExportMode exportMode, final boolean parallel, boolean ignoreFrameScripts) throws InterruptedException {
         writer.suspendMeasure();
         int timeout = Configuration.decompilationTimeoutFile.get();
         try {
@@ -254,14 +274,22 @@ public class ScriptPack extends AS3ClassTreeItem {
             logger.log(Level.SEVERE, "Decompilation timeout", ex);
             Helper.appendTimeoutCommentAs3(writer, timeout, 0);
             return;
+        } catch (CancellationException ex) {
+            throw new InterruptedException();
         } catch (ExecutionException ex) {
             writer.continueMeasure();
             Exception convertException = ex;
             Throwable cause = ex.getCause();
-            if (ex instanceof ExecutionException && cause instanceof Exception) {
+            if (cause instanceof Exception) {
                 convertException = (Exception) cause;
             }
 
+            if (convertException instanceof CancellationException) {
+                throw new InterruptedException();
+            }
+            if (convertException instanceof InterruptedException) {
+                throw (InterruptedException) convertException;
+            }
             logger.log(Level.SEVERE, "Decompilation error", convertException);
             Helper.appendErrorComment(writer, convertException);
             return;
@@ -284,7 +312,9 @@ public class ScriptPack extends AS3ClassTreeItem {
 
         try (FileTextWriter writer = exportSettings.singleFile ? null : new FileTextWriter(Configuration.getCodeFormatting(), new FileOutputStream(file))) {
             FileTextWriter writer2 = exportSettings.singleFile ? exportSettings.singleFileWriter : writer;
-            toSource(writer2, abc.script_info.get(scriptIndex).traits.traits, new ConvertData(), exportSettings.mode, parallel);
+            ConvertData convertData = new ConvertData();
+            convertData.ignoreFrameScripts = exportSettings.ignoreFrameScripts;
+            toSource(writer2, abc.script_info.get(scriptIndex).traits.traits, convertData, exportSettings.mode, parallel, exportSettings.ignoreFrameScripts);
         } catch (FileNotFoundException ex) {
             logger.log(Level.SEVERE, "The file path is probably too long", ex);
         }
@@ -321,6 +351,9 @@ public class ScriptPack extends AS3ClassTreeItem {
 
     @Override
     public boolean isModified() {
+        if (scriptIndex >= abc.script_info.size()) {
+            return false;
+        }
         return abc.script_info.get(scriptIndex).isModified();
     }
 
@@ -506,7 +539,7 @@ public class ScriptPack extends AS3ClassTreeItem {
                     continue;
                 }
                 addedLines.add(line);
-                logger.log(Level.FINE, "Script " + path + ": Insert debugline(" + line + ") at pos " + i + " to body " + bodyIndex);
+                logger.log(Level.FINE, "Script {0}: Insert debugline({1}) at pos {2} to body {3}", new Object[]{path, line, i, bodyIndex});
                 b.insertInstruction(i + dpos, new AVM2Instruction(0, AVM2Instructions.DebugLine, new int[]{line}));
             }
             //remove old debug instructions
@@ -576,7 +609,7 @@ public class ScriptPack extends AS3ClassTreeItem {
         int scriptInitBody = abc.findBodyIndex(abc.script_info.get(scriptIndex).init_index);
 
         if (!bodyToIdentifier.containsKey(scriptInitBody)) {
-            bodyToIdentifier.put(scriptInitBody, "abc:" + abcIndex + ",script:" + scriptIndex + ",class:-1,trait:-3,method:" + abc.script_info.get(scriptIndex).init_index);
+            bodyToIdentifier.put(scriptInitBody, "abc:" + abcIndex + ",script:" + scriptIndex + ",class:-1,trait:-3,method:" + abc.script_info.get(scriptIndex).init_index + ",body:" + scriptInitBody);
         }
 
         String pkg = path.packageStr.toString();
@@ -625,6 +658,17 @@ public class ScriptPack extends AS3ClassTreeItem {
         for (int t : traitIndices) {
             Trait trait = traits.get(t);
             trait.getMethodInfos(abc, GraphTextWriter.TRAIT_UNKNOWN, -1, methodInfos);
+        }
+    }
+
+    public void delete(ABC abc, boolean d) {
+        ScriptInfo si = abc.script_info.get(scriptIndex);
+        if (isSimple) {
+            si.delete(abc, d);
+        } else {
+            for (int t : traitIndices) {
+                si.traits.traits.get(t).delete(abc, d);
+            }
         }
     }
 }

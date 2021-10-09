@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 package com.jpexs.decompiler.flash.gui.timeline;
 
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.timeline.Timeline;
 import com.jpexs.decompiler.flash.timeline.Timelined;
 import java.awt.BorderLayout;
@@ -85,7 +86,7 @@ public class TimelinePanel extends JPanel {
         timelineBodyPanel = new TimelineBodyPanel(timeline);
         setLayout(new BorderLayout());
 
-        JScrollPane sp = new JScrollPane(timelineBodyPanel);
+        JScrollPane sp = new FasterScrollPane(timelineBodyPanel);
 
         depthPanel = new TimelineDepthPanel(timeline);
 

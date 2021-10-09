@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -41,7 +41,10 @@ public class HasNext2Ins extends InstructionDefinition {
         int objectReg = ins.operands[0];
         int indexReg = ins.operands[1];
         //stack.push("_loc_" + objectReg + ".hasNext(cnt=_loc_" + indexReg + ")");
-        stack.push(new HasNextAVM2Item(ins, localData.lineStartInstruction, new LocalRegAVM2Item(ins, localData.lineStartInstruction, indexReg, localData.localRegs.get(indexReg)), localData.localRegNames.containsKey(objectReg) ? new LocalRegAVM2Item(ins, localData.lineStartInstruction, objectReg, localData.localRegs.get(objectReg)) : localData.localRegs.get(objectReg)));
+        stack.push(new HasNextAVM2Item(ins, localData.lineStartInstruction,
+                new LocalRegAVM2Item(ins, localData.lineStartInstruction, indexReg, localData.localRegs.get(indexReg)),
+                new LocalRegAVM2Item(ins, localData.lineStartInstruction, objectReg, localData.localRegs.get(objectReg))
+        ));
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -33,7 +33,6 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.localregs.SetLocalTypeIn
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.ReturnValueIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.ReturnVoidIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.ThrowIns;
-import com.jpexs.helpers.Reference;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.MethodInfo;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
@@ -44,6 +43,7 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateException;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -302,6 +302,11 @@ public class AVM2DeobfuscatorRegisters extends AVM2DeobfuscatorSimple {
                         @Override
                         public long pos2adr(int pos) {
                             return code.pos2adr(pos);
+                        }
+
+                        @Override
+                        public int adr2pos(long adr, boolean nearest) {
+                            return code.adr2pos(adr, nearest);
                         }
 
                         @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.abc.avm2.model.clauses.AssignmentAVM2Item;
@@ -20,8 +21,10 @@ import com.jpexs.decompiler.flash.abc.avm2.model.clauses.DeclarationAVM2Item;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import java.util.Objects;
 
 /**
  *
@@ -34,6 +37,17 @@ public class InitPropertyAVM2Item extends AVM2Item implements SetTypeAVM2Item, A
     public FullMultinameAVM2Item propertyName;
 
     public DeclarationAVM2Item declaration;
+
+    public GraphTargetItem compoundValue;
+
+    public String compoundOperator;
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(object);
+        visitor.visit(propertyName);
+        visitor.visit(value);
+    }
 
     @Override
     public DeclarationAVM2Item getDeclaration() {
@@ -54,6 +68,13 @@ public class InitPropertyAVM2Item extends AVM2Item implements SetTypeAVM2Item, A
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         formatProperty(writer, object, propertyName, localData);
+
+        if (compoundOperator != null) {
+            writer.append(" ");
+            writer.append(compoundOperator);
+            writer.append("= ");
+            return compoundValue.toString(writer, localData);
+        }
         writer.append(" = ");
         return value.toString(writer, localData);
     }
@@ -76,5 +97,54 @@ public class InitPropertyAVM2Item extends AVM2Item implements SetTypeAVM2Item, A
     @Override
     public boolean hasReturnValue() {
         return false;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 17 * hash + Objects.hashCode(this.object);
+        hash = 17 * hash + Objects.hashCode(this.propertyName);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final InitPropertyAVM2Item other = (InitPropertyAVM2Item) obj;
+        if (!Objects.equals(this.object, other.object)) {
+            return false;
+        }
+        if (!Objects.equals(this.propertyName, other.propertyName)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public GraphTargetItem getCompoundValue() {
+        return compoundValue;
+    }
+
+    @Override
+    public void setCompoundValue(GraphTargetItem value) {
+        this.compoundValue = value;
+    }
+
+    @Override
+    public void setCompoundOperator(String operator) {
+        compoundOperator = operator;
+    }
+
+    @Override
+    public String getCompoundOperator() {
+        return compoundOperator;
     }
 }

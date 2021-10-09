@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -84,7 +84,7 @@ public class BinaryDataEditor extends JButton implements GenericTagEditor {
     }
 
     private void buttonActionPerformed(ActionEvent evt) {
-        File selectedFile = mainPanel.showImportFileChooser("");
+        File selectedFile = mainPanel.showImportFileChooser("", false);
         if (selectedFile != null) {
             File selfile = Helper.fixDialogFile(selectedFile);
             byte[] data = Helper.readFile(selfile.getAbsolutePath());

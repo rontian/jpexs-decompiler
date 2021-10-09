@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -56,7 +56,7 @@ public class ActionScript3AssemblerTest extends ActionScriptTestBase {
     }
 
     private int getBaseAddr() {
-        return 2; //getlocal_0 + pushscope
+        return 2; //getlocal0 + pushscope
     }
 
     private ABC getABC() {
@@ -81,7 +81,7 @@ public class ActionScript3AssemblerTest extends ActionScriptTestBase {
 
     private MethodBody compilePCode(String str) throws IOException, AVM2ParseException, InterruptedException {
         str = "code\r\n"
-                + "getlocal_0\r\n"
+                + "getlocal0\r\n"
                 + "pushscope\r\n"
                 + str
                 + "returnvoid\r\n";
@@ -101,7 +101,7 @@ public class ActionScript3AssemblerTest extends ActionScriptTestBase {
     @Test
     public void removeInstruction() throws Exception {
         MethodBody b = compilePCode("pushbyte 1\r\n"
-                + "setlocal_1\r\n" //remove this
+                + "setlocal1\r\n" //remove this
                 + "jump label1\r\n"
                 + "pushtrue\r\n"
                 + "pop\r\n"
@@ -112,7 +112,7 @@ public class ActionScript3AssemblerTest extends ActionScriptTestBase {
     @Test
     public void removeInstruction2() throws Exception {
         MethodBody b = compilePCode("pushbyte 1\r\n"
-                + "setlocal_1\r\n"
+                + "setlocal1\r\n"
                 + "jump label1\r\n"
                 + "pushtrue\r\n"
                 + "pop\r\n" //remove this
@@ -123,7 +123,7 @@ public class ActionScript3AssemblerTest extends ActionScriptTestBase {
     @Test
     public void replaceInstruction() throws Exception {
         MethodBody b = compilePCode("pushbyte 1\r\n"
-                + "setlocal_1\r\n"
+                + "setlocal1\r\n"
                 + "jump label1\r\n" //remove this
                 + "jump label1\r\n"
                 + "pushtrue\r\n"
@@ -135,7 +135,7 @@ public class ActionScript3AssemblerTest extends ActionScriptTestBase {
     @Test
     public void replaceInstruction2() throws Exception {
         MethodBody b = compilePCode("pushbyte 1\r\n"
-                + "setlocal_1\r\n"
+                + "setlocal1\r\n"
                 + "jump label1\r\n"
                 + "pushtrue\r\n"
                 + "jump label1\r\n" //remove this

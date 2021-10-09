@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,20 +16,10 @@
 package com.jpexs.decompiler.flash.docs;
 
 import com.jpexs.decompiler.flash.ApplicationInfo;
-import static com.jpexs.decompiler.flash.docs.As3PCodeDocs.NEWLINE;
-import com.jpexs.helpers.Cache;
 import com.jpexs.helpers.Helper;
-import com.jpexs.helpers.utf8.Utf8Helper;
-import java.io.InputStream;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.Locale;
 import java.util.ResourceBundle;
-import java.util.TimeZone;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class As3PCodeOtherDocs extends AbstractDocs {
 
@@ -76,6 +66,9 @@ public class As3PCodeOtherDocs extends AbstractDocs {
             String curPath = String.join(".", Arrays.copyOf(pathParts, i + 1));
             if (curPath.startsWith("trait.method")) {
                 curPath = path.substring("trait.".length());
+            }
+            if (curPath.startsWith("method.body.trait.")) {
+                curPath = path.substring("method.body.".length());
             }
             if (prop.containsKey(curPath)) {
                 String docStr = prop.getString(curPath);

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.parser.pcode;
 
 /**
@@ -165,7 +166,7 @@ public class ParsedSymbol {
 
     public static final int TYPE_KEYWORD_FALSE = 70;
 
-    public static final int TYPE_KEYWORD_UNDEFINED = 71;
+    public static final int TYPE_KEYWORD_VOID = 71;
 
     public static final int TYPE_KEYWORD_TRAIT = 72;
 

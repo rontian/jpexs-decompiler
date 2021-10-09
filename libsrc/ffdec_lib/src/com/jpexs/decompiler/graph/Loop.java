@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -30,6 +33,8 @@ public class Loop implements Serializable {
     public GraphPart loopBreak;
 
     public GraphPart loopPreContinue;
+
+    public Set<GraphPart> backEdges = new HashSet<>();
 
     public List<GraphPart> breakCandidates = new ArrayList<>();
 
@@ -45,6 +50,8 @@ public class Loop implements Serializable {
 
     public int breakCandidatesLocked = 0;
 
+    public List<GraphTargetItem> precontinueCommands = null;
+
     public Loop(long id, GraphPart loopContinue, GraphPart loopBreak) {
         this.loopContinue = loopContinue;
         this.loopBreak = loopBreak;
@@ -53,7 +60,11 @@ public class Loop implements Serializable {
 
     @Override
     public String toString() {
-        return "loop(id:" + id + (loopPreContinue != null ? ",precontinue:" + loopPreContinue : "") + ",continue:" + loopContinue + ", break:" + loopBreak + ", phase:" + phase + ")";
+        Set<String> edgesAsStr = new HashSet<>();
+        for (GraphPart p : backEdges) {
+            edgesAsStr.add(p.toString());
+        }
+        return "loop(id:" + id + (loopPreContinue != null ? ",precontinue:" + loopPreContinue : "") + ",continue:" + loopContinue + ", break:" + loopBreak + ", phase:" + phase + ", backedges: " + String.join(",", edgesAsStr) + ")";
     }
 
     @Override

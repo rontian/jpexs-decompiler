@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.search;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -26,8 +27,10 @@ import com.jpexs.decompiler.flash.helpers.HighlightedText;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
@@ -40,9 +43,15 @@ import java.util.regex.Pattern;
  */
 public class ActionScriptSearch {
 
-    public List<ActionSearchResult> searchAs2(SWF swf, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, ScriptSearchListener listener) {
+    public List<ActionSearchResult> searchAs2(SWF swf, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, ScriptSearchListener listener, Map<String, ASMSource> scope) {
         if (txt != null && !txt.isEmpty()) {
-            Map<String, ASMSource> asms = swf.getASMs(false);
+            Map<String, ASMSource> asms;
+            if (scope == null) {
+                asms = swf.getASMs(false);
+            } else {
+                asms = scope;
+            }
+
             final List<ActionSearchResult> found = new ArrayList<>();
             Pattern pat = regexp
                     ? Pattern.compile(txt, ignoreCase ? (Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE) : 0)
@@ -91,20 +100,28 @@ public class ActionScriptSearch {
 
                         futures.add(text);
                     }
+                    for (Future<HighlightedText> future : futures) {
+                        try {
+                            future.get();
+                        } catch (CancellationException ex) {
+                            throw new InterruptedException();
+                        } catch (ExecutionException ex) {
+                            Logger.getLogger(ActionScriptSearch.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
                 }
             } catch (InterruptedException ex) {
                 for (Future<HighlightedText> future : futures) {
                     future.cancel(true);
                 }
             }
-
             return found;
         }
 
         return null;
     }
 
-    public List<ABCSearchResult> searchAs3(final SWF swf, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, ScriptSearchListener listener) {
+    public List<ABCSearchResult> searchAs3(final SWF swf, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, ScriptSearchListener listener, List<ScriptPack> scope) {
         // todo: pcode seach
         if (txt != null && !txt.isEmpty()) {
             List<String> ignoredClasses = new ArrayList<>();
@@ -114,8 +131,14 @@ public class ActionScriptSearch {
                 swf.getFlexMainClass(ignoredClasses, ignoredNss);
             }
 
-            final List<ABCSearchResult> found = new ArrayList<>();
-            List<ScriptPack> allpacks = swf.getAS3Packs();
+            final List<ABCSearchResult> found = Collections.synchronizedList(new ArrayList<>());
+            final List<ScriptPack> fscope;
+            if (scope == null) {
+                fscope = swf.getAS3Packs();
+            } else {
+                fscope = scope;
+            }
+
             final Pattern pat = regexp
                     ? Pattern.compile(txt, ignoreCase ? (Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE) : 0)
                     : Pattern.compile(Pattern.quote(txt), ignoreCase ? (Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE) : 0);
@@ -124,7 +147,7 @@ public class ActionScriptSearch {
             List<Future<HighlightedText>> futures = new ArrayList<>();
             try {
                 loop:
-                for (final ScriptPack pack : allpacks) {
+                for (final ScriptPack pack : fscope) {
                     pos++;
                     if (!pack.isSimple && Configuration.ignoreCLikePackages.get()) {
                         continue;
@@ -143,7 +166,7 @@ public class ActionScriptSearch {
 
                     if (pcode) {
                         if (listener != null) {
-                            listener.onSearch(pos, allpacks.size(), pack.getClassPath().toString());
+                            listener.onSearch(pos, fscope.size(), pack.getClassPath().toString());
                         }
 
                         List<MethodId> methodInfos = new ArrayList<>();
@@ -155,7 +178,7 @@ public class ActionScriptSearch {
                             if (bodyIndex != -1) {
                                 MethodBody body = abc.bodies.get(bodyIndex);
                                 HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), true);
-                                abc.bodies.get(bodyIndex).getCode().toASMSource(abc.constants, abc.method_info.get(body.method_info), body, ScriptExportMode.PCODE, writer);
+                                abc.bodies.get(bodyIndex).getCode().toASMSource(abc, abc.constants, abc.method_info.get(body.method_info), body, ScriptExportMode.PCODE, writer);
                                 String text = writer.toString();
                                 if (pat.matcher(text).find()) {
                                     ABCSearchResult searchResult = new ABCSearchResult(pack, methodInfo.getClassIndex(), methodInfo.getTraitId());
@@ -168,15 +191,21 @@ public class ActionScriptSearch {
                         Future<HighlightedText> text = SWF.getCachedFuture(pack, new ScriptDecompiledListener<HighlightedText>() {
                             @Override
                             public void onStart() {
+                                if (Thread.currentThread().isInterrupted()) {
+                                    return;
+                                }
                                 if (listener != null) {
-                                    listener.onDecompile(fpos, allpacks.size(), pack.getClassPath().toString());
+                                    listener.onDecompile(fpos, fscope.size(), pack.getClassPath().toString());
                                 }
                             }
 
                             @Override
                             public void onComplete(HighlightedText result) {
-                                if (listener != null) {
-                                    listener.onSearch(fpos, allpacks.size(), pack.getClassPath().toString());
+
+                                if (!Thread.currentThread().isInterrupted()) {
+                                    if (listener != null) {
+                                        listener.onSearch(fpos, fscope.size(), pack.getClassPath().toString());
+                                    }
                                 }
 
                                 if (pat.matcher(result.text).find()) {
@@ -193,6 +222,8 @@ public class ActionScriptSearch {
                 for (Future<HighlightedText> future : futures) {
                     try {
                         future.get();
+                    } catch (CancellationException ex) {
+                        throw new InterruptedException();
                     } catch (ExecutionException ex) {
                         Logger.getLogger(ActionScriptSearch.class.getName()).log(Level.SEVERE, null, ex);
                     }
@@ -205,7 +236,6 @@ public class ActionScriptSearch {
 
             return found;
         }
-
         return null;
     }
 }

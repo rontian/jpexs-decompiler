@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,7 @@
  */
 package com.jpexs.decompiler.flash.action.parser.script;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.model.AsciiToCharActionItem;
@@ -25,6 +26,7 @@ import com.jpexs.decompiler.flash.action.model.CallMethodActionItem;
 import com.jpexs.decompiler.flash.action.model.CastOpActionItem;
 import com.jpexs.decompiler.flash.action.model.CharToAsciiActionItem;
 import com.jpexs.decompiler.flash.action.model.CloneSpriteActionItem;
+import com.jpexs.decompiler.flash.action.model.ConstantPool;
 import com.jpexs.decompiler.flash.action.model.DefineLocalActionItem;
 import com.jpexs.decompiler.flash.action.model.DeleteActionItem;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
@@ -130,6 +132,11 @@ import com.jpexs.decompiler.flash.ecma.Null;
 import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.collections.MyEntry;
+import com.jpexs.decompiler.flash.tags.DoInitActionTag;
+import com.jpexs.decompiler.flash.tags.base.ASMSource;
+import com.jpexs.decompiler.flash.types.BUTTONCONDACTION;
+import com.jpexs.decompiler.flash.types.CLIPACTIONRECORD;
+import com.jpexs.decompiler.flash.types.CLIPEVENTFLAGS;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
@@ -142,6 +149,7 @@ import com.jpexs.decompiler.graph.model.ContinueItem;
 import com.jpexs.decompiler.graph.model.DefaultItem;
 import com.jpexs.decompiler.graph.model.DoWhileItem;
 import com.jpexs.decompiler.graph.model.DuplicateItem;
+import com.jpexs.decompiler.graph.model.EmptyCommand;
 import com.jpexs.decompiler.graph.model.ForItem;
 import com.jpexs.decompiler.graph.model.IfItem;
 import com.jpexs.decompiler.graph.model.LocalData;
@@ -152,6 +160,7 @@ import com.jpexs.decompiler.graph.model.PopItem;
 import com.jpexs.decompiler.graph.model.PushItem;
 import com.jpexs.decompiler.graph.model.SwitchItem;
 import com.jpexs.decompiler.graph.model.TernarOpItem;
+import com.jpexs.decompiler.graph.model.TrueItem;
 import com.jpexs.decompiler.graph.model.WhileItem;
 import java.io.IOException;
 import java.io.StringReader;
@@ -159,6 +168,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -166,15 +176,85 @@ import java.util.List;
  */
 public class ActionScript2Parser {
 
-    private final int swfVersion;
+    public static final List<String> BUILTIN_CASTS = Arrays.asList(new String[]{
+        "flash.display.BitmapData",
+        "flash.external.ExternalInterface",
+        "flash.filters.BevelFilter",
+        "flash.filters.BitmapFilter",
+        "flash.filters.BlurFilter",
+        "flash.filters.ColorMatrixFilter",
+        "flash.filters.ConvolutionFilter",
+        "flash.filters.DisplacementMapFilter",
+        "flash.filters.DropShadowFilter",
+        "flash.filters.GlowFilter",
+        "flash.filters.GradientBevelFilter",
+        "flash.filters.GradientGlowFilter",
+        "flash.geom.ColorTransform",
+        "flash.geom.Matrix",
+        "flash.geom.Point",
+        "flash.geom.Rectangle",
+        "flash.geom.Transform",
+        "flash.net.FileReference",
+        "flash.net.FileReferenceList",
+        "flash.text.TextRenderer",
+        "Button",
+        "Camera",
+        "Color",
+        "ContextMenu",
+        "ContextMenuItem",
+        "CustomActions",
+        "Error",
+        "System.IME",
+        "LoadVars",
+        "LocalConnection",
+        "Microphone",
+        "MovieClip",
+        "MovieClipLoader",
+        "NetConnection",
+        "NetStream",
+        "PrintJob",
+        "System.security",
+        "SharedObject",
+        "Sound",
+        "TextField",
+        "TextFormat",
+        "TextSnapshot",
+        "XML",
+        "XMLNode",
+        "XMLSocket",
+        "XMLUI"
+    });
 
-    public ActionScript2Parser(int swfVersion) {
-        this.swfVersion = swfVersion;
+    private final int swfVersion;
+    private List<String> swfClasses = new ArrayList<>();
+    private final ASMSource targetSource;
+
+    public ActionScript2Parser(SWF swf, ASMSource targetSource) {
+        this.swfVersion = swf.version;
+        parseSwfClasses(swf);
+        this.targetSource = targetSource;
     }
 
     private long uniqLast = 0;
 
     private final boolean debugMode = false;
+
+    private void parseSwfClasses(SWF swf) {
+        Map<String, ASMSource> asms = swf.getASMs(false);
+        for (ASMSource s : asms.values()) {
+            if (s instanceof DoInitActionTag) {
+                String exportName = swf.getExportName(((DoInitActionTag) s).spriteId);
+
+                if (exportName != null) {
+                    final String PREFIX = "__Packages.";
+                    if (exportName.startsWith(PREFIX)) {
+                        String className = exportName.substring(PREFIX.length());
+                        swfClasses.add(className);
+                    }
+                }
+            }
+        }
+    }
 
     private String uniqId() {
         uniqLast++;
@@ -269,7 +349,7 @@ public class ActionScript2Parser {
             if (s.type != SymbolType.COMMA) {
                 lexer.pushback(s);
             }
-            ret.add(expression(inFunction, inMethod, true, variables, functions));
+            ret.add(expression(inFunction, inMethod, true, variables, functions, false));
             s = lex();
             expected(s, lexer.yyline(), SymbolType.COMMA, SymbolType.PARENT_CLOSE);
         }
@@ -403,7 +483,7 @@ public class ActionScript2Parser {
                         s = lex();
                     }
                     if (s.type == SymbolType.ASSIGN) {
-                        traits.add(new MyEntry<>(pushConst(ident), expression(false, false, true, variables, functions)));
+                        traits.add(new MyEntry<>(pushConst(ident), expression(false, false, true, variables, functions, false)));
                         traitsStatic.add(isStatic);
                         s = lex();
                     }
@@ -438,52 +518,52 @@ public class ActionScript2Parser {
                 break;
             case MBORD:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new MBCharToAsciiActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new MBCharToAsciiActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case MBCHR:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new MBAsciiToCharActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new MBAsciiToCharActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case MBLENGTH:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new MBStringLengthActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new MBStringLengthActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case MBSUBSTRING:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem val1 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem val1 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.COMMA);
-                GraphTargetItem index1 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem index1 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.COMMA);
-                GraphTargetItem len1 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem len1 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 ret = new MBStringExtractActionItem(null, null, val1, index1, len1);
                 break;
             case SUBSTR:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem val2 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem val2 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.COMMA);
-                GraphTargetItem index2 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem index2 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.COMMA);
-                GraphTargetItem len2 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem len2 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 ret = new StringExtractActionItem(null, null, val2, index2, len2);
                 break;
             case LENGTH:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new StringLengthActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new StringLengthActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case RANDOM:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new RandomNumberActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new RandomNumberActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case INT:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new ToIntegerActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new ToIntegerActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case NUMBER_OP:
@@ -496,7 +576,7 @@ public class ActionScript2Parser {
                     ret = vi; //memberOrCall(vi, inFunction, inMethod, variables, functions);
                 } else {
                     expected(s, lexer.yyline(), SymbolType.PARENT_OPEN);
-                    ret = new ToNumberActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                    ret = new ToNumberActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                     expectedType(SymbolType.PARENT_CLOSE);
                 }
                 break;
@@ -510,28 +590,28 @@ public class ActionScript2Parser {
                     ret = vi2; //memberOrCall(vi2, inFunction, inMethod, variables, functions);
                 } else {
                     expected(s, lexer.yyline(), SymbolType.PARENT_OPEN);
-                    ret = new ToStringActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                    ret = new ToStringActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                     expectedType(SymbolType.PARENT_CLOSE);
                     //ret = memberOrCall(ret, inFunction, inMethod, variables, functions);
                 }
                 break;
             case ORD:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new CharToAsciiActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new CharToAsciiActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case CHR:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new AsciiToCharActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new AsciiToCharActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case DUPLICATEMOVIECLIP:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem src3 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem src3 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.COMMA);
-                GraphTargetItem tar3 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem tar3 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.COMMA);
-                GraphTargetItem dep3 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem dep3 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 ret = new CloneSpriteActionItem(null, null, src3, tar3, dep3);
                 break;
@@ -539,6 +619,11 @@ public class ActionScript2Parser {
                 expectedType(SymbolType.PARENT_OPEN);
                 expectedType(SymbolType.PARENT_CLOSE);
                 ret = new GetTimeActionItem(null, null);
+                break;
+            case TARGETPATH:
+                expectedType(SymbolType.PARENT_OPEN);
+                ret = new TargetPathActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions, false)));
+                expectedType(SymbolType.PARENT_CLOSE);
                 break;
             default:
                 return null;
@@ -563,35 +648,35 @@ public class ActionScript2Parser {
         switch (s.type) {
             case FSCOMMAND:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new FSCommandActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new FSCommandActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case CALL:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new CallActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions)));
+                ret = new CallActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions, false)));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case LENGTH:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new StringLengthActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions)));
+                ret = new StringLengthActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions, false)));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case MBLENGTH:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new MBStringLengthActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions)));
+                ret = new MBStringLengthActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions, false)));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case SET:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem name1 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem name1 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.COMMA);
-                GraphTargetItem value1 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem value1 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 ret = new SetVariableActionItem(null, null, name1, value1);
                 break;
             case WITH:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem wvar = expression(inFunction, inMethod, false, variables, functions);//(variable(inFunction, inMethod, variables, functions));
+                GraphTargetItem wvar = expression(inFunction, inMethod, false, variables, functions, false);//(variable(inFunction, inMethod, variables, functions));
                 expectedType(SymbolType.PARENT_CLOSE);
                 expectedType(SymbolType.CURLY_OPEN);
                 List<GraphTargetItem> wcmd = commands(inFunction, inMethod, forinlevel, variables, functions);
@@ -599,7 +684,7 @@ public class ActionScript2Parser {
                 ret = new WithActionItem(null, null, wvar, wcmd);
                 break;
             case DELETE:
-                GraphTargetItem varDel = expression(inFunction, inMethod, false, variables, functions);//variable(inFunction, inMethod, variables, functions);
+                GraphTargetItem varDel = expression(inFunction, inMethod, false, variables, functions, false);//variable(inFunction, inMethod, variables, functions);
                 if (varDel instanceof GetMemberActionItem) {
                     GetMemberActionItem gm = (GetMemberActionItem) varDel;
                     ret = new DeleteActionItem(null, null, gm.object, gm.memberName);
@@ -614,19 +699,19 @@ public class ActionScript2Parser {
                 break;
             case TRACE:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new TraceActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions)));
+                ret = new TraceActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions, false)));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
 
             case GETURL:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem url = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem url = (expression(inFunction, inMethod, true, variables, functions, false));
                 s = lex();
                 expected(s, lexer.yyline(), SymbolType.PARENT_CLOSE, SymbolType.COMMA);
-                int getuMethod = 1;
+                int getuMethod = 0;
                 GraphTargetItem target;
                 if (s.type == SymbolType.COMMA) {
-                    target = (expression(inFunction, inMethod, true, variables, functions));
+                    target = (expression(inFunction, inMethod, true, variables, functions, false));
                     s = lex();
                     if (s.type == SymbolType.COMMA) {
                         s = lex();
@@ -650,11 +735,11 @@ public class ActionScript2Parser {
                 break;
             case GOTOANDSTOP:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem gtsFrame = expression(inFunction, inMethod, true, variables, functions);
+                GraphTargetItem gtsFrame = expression(inFunction, inMethod, true, variables, functions, false);
                 s = lex();
                 if (s.type == SymbolType.COMMA) { //Handle scene?
                     lex();
-                    gtsFrame = expression(inFunction, inMethod, true, variables, functions);
+                    gtsFrame = expression(inFunction, inMethod, true, variables, functions, false);
                 } else {
                     lexer.pushback(s);
                 }
@@ -678,7 +763,7 @@ public class ActionScript2Parser {
                 break;
             case TELLTARGET:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem tellTarget = expression(inFunction, inMethod, true, variables, functions);
+                GraphTargetItem tellTarget = expression(inFunction, inMethod, true, variables, functions, false);
                 expectedType(SymbolType.PARENT_CLOSE);
                 expectedType(SymbolType.CURLY_OPEN);
                 List<GraphTargetItem> tellcmds = commands(inFunction, inMethod, forinlevel, variables, functions);
@@ -707,17 +792,11 @@ public class ActionScript2Parser {
                 ret = new StopDragActionItem(null, null);
                 break;
 
-            case TARGETPATH:
-                expectedType(SymbolType.PARENT_OPEN);
-                ret = new TargetPathActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions)));
-                expectedType(SymbolType.PARENT_CLOSE);
-                break;
-
             case UNLOADMOVIE:
             case UNLOADMOVIENUM:
                 SymbolType unloadType = s.type;
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem unTargetOrNum = expression(inFunction, inMethod, true, variables, functions);
+                GraphTargetItem unTargetOrNum = expression(inFunction, inMethod, true, variables, functions, false);
                 expectedType(SymbolType.PARENT_CLOSE);
                 if (unloadType == SymbolType.UNLOADMOVIE) {
                     ret = new UnLoadMovieActionItem(null, null, unTargetOrNum);
@@ -732,9 +811,9 @@ public class ActionScript2Parser {
             case PRINTNUM:
                 SymbolType printType = s.type;
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem printTarget = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem printTarget = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.COMMA);
-                GraphTargetItem printBBox = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem printBBox = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
 
                 switch (printType) {
@@ -758,9 +837,9 @@ public class ActionScript2Parser {
             case LOADMOVIENUM:
                 SymbolType loadType = s.type;
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem url2 = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem url2 = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.COMMA);
-                GraphTargetItem targetOrNum = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem targetOrNum = (expression(inFunction, inMethod, true, variables, functions, false));
 
                 s = lex();
                 expected(s, lexer.yyline(), SymbolType.PARENT_CLOSE, SymbolType.COMMA);
@@ -796,11 +875,11 @@ public class ActionScript2Parser {
                 break;
             case GOTOANDPLAY:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem gtpFrame = expression(inFunction, inMethod, true, variables, functions);
+                GraphTargetItem gtpFrame = expression(inFunction, inMethod, true, variables, functions, false);
                 s = lex();
                 if (s.type == SymbolType.COMMA) { //Handle scene?
                     lex();
-                    gtpFrame = expression(inFunction, inMethod, true, variables, functions);
+                    gtpFrame = expression(inFunction, inMethod, true, variables, functions, false);
                 } else {
                     lexer.pushback(s);
                 }
@@ -810,12 +889,12 @@ public class ActionScript2Parser {
 
             case REMOVEMOVIECLIP:
                 expectedType(SymbolType.PARENT_OPEN);
-                ret = new RemoveSpriteActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions)));
+                ret = new RemoveSpriteActionItem(null, null, (expression(inFunction, inMethod, true, variables, functions, false)));
                 expectedType(SymbolType.PARENT_CLOSE);
                 break;
             case STARTDRAG:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem dragTarget = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem dragTarget = (expression(inFunction, inMethod, true, variables, functions, false));
                 GraphTargetItem lockCenter;
                 GraphTargetItem constrain;
                 GraphTargetItem x1 = null;
@@ -824,20 +903,20 @@ public class ActionScript2Parser {
                 GraphTargetItem y2 = null;
                 s = lex();
                 if (s.type == SymbolType.COMMA) {
-                    lockCenter = (expression(inFunction, inMethod, true, variables, functions));
+                    lockCenter = (expression(inFunction, inMethod, true, variables, functions, false));
                     s = lex();
                     if (s.type == SymbolType.COMMA) {
                         constrain = new DirectValueActionItem(null, null, 0, 1L, new ArrayList<>());
-                        x1 = (expression(inFunction, inMethod, true, variables, functions));
+                        x1 = (expression(inFunction, inMethod, true, variables, functions, false));
                         s = lex();
                         if (s.type == SymbolType.COMMA) {
-                            y1 = (expression(inFunction, inMethod, true, variables, functions));
+                            y1 = (expression(inFunction, inMethod, true, variables, functions, false));
                             s = lex();
                             if (s.type == SymbolType.COMMA) {
-                                x2 = (expression(inFunction, inMethod, true, variables, functions));
+                                x2 = (expression(inFunction, inMethod, true, variables, functions, false));
                                 s = lex();
                                 if (s.type == SymbolType.COMMA) {
-                                    y2 = (expression(inFunction, inMethod, true, variables, functions));
+                                    y2 = (expression(inFunction, inMethod, true, variables, functions, false));
                                 } else {
                                     lexer.pushback(s);
                                     y2 = new DirectValueActionItem(null, null, 0, 0L, new ArrayList<>());
@@ -870,7 +949,7 @@ public class ActionScript2Parser {
 
             case IFFRAMELOADED:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem iflExpr = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem iflExpr = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 expectedType(SymbolType.CURLY_OPEN);
                 List<GraphTargetItem> iflComs = commands(inFunction, inMethod, forinlevel, variables, functions);
@@ -930,7 +1009,7 @@ public class ActionScript2Parser {
                 }
 
                 if (s.type == SymbolType.ASSIGN) {
-                    GraphTargetItem varval = (expression(inFunction, inMethod, true, variables, functions));
+                    GraphTargetItem varval = (expression(inFunction, inMethod, true, variables, functions, false));
                     ret = new VariableActionItem(varIdentifier, varval, true);
                     variables.add((VariableActionItem) ret);
                 } else {
@@ -945,7 +1024,7 @@ public class ActionScript2Parser {
                 break;
             case INCREMENT: //preincrement
             case DECREMENT: //predecrement
-                GraphTargetItem varincdec = expression(inFunction, inMethod, false, variables, functions);
+                GraphTargetItem varincdec = expression(inFunction, inMethod, false, variables, functions, false);
                 if (s.type == SymbolType.INCREMENT) {
                     ret = new PreIncrementActionItem(null, null, varincdec);
                 } else if (s.type == SymbolType.DECREMENT) {
@@ -966,7 +1045,7 @@ public class ActionScript2Parser {
                 break;
             case IF:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem ifExpr = (expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem ifExpr = (expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 GraphTargetItem onTrue = command(inFunction, inMethod, forinlevel, true, variables, functions);
                 List<GraphTargetItem> onTrueList = new ArrayList<>();
@@ -984,7 +1063,7 @@ public class ActionScript2Parser {
             case WHILE:
                 expectedType(SymbolType.PARENT_OPEN);
                 List<GraphTargetItem> whileExpr = new ArrayList<>();
-                whileExpr.add(commaExpression(inFunction, inMethod, forinlevel, variables, functions));
+                whileExpr.add(expression(inFunction, inMethod, true, variables, functions, true));
                 expectedType(SymbolType.PARENT_CLOSE);
                 List<GraphTargetItem> whileBody = new ArrayList<>();
                 whileBody.add(command(inFunction, inMethod, forinlevel, true, variables, functions));
@@ -996,7 +1075,7 @@ public class ActionScript2Parser {
                 expectedType(SymbolType.WHILE);
                 expectedType(SymbolType.PARENT_OPEN);
                 List<GraphTargetItem> doExpr = new ArrayList<>();
-                doExpr.add(commaExpression(inFunction, inMethod, forinlevel, variables, functions));
+                doExpr.add(expression(inFunction, inMethod, true, variables, functions, true));
                 expectedType(SymbolType.PARENT_CLOSE);
                 ret = new DoWhileItem(null, null, null, doBody, doExpr);
                 break;
@@ -1057,7 +1136,7 @@ public class ActionScript2Parser {
 
                             variables.add(item);
 
-                            collection = expression(inFunction, inMethod, true, variables, functions);
+                            collection = expression(inFunction, inMethod, true, variables, functions, false);
                             forin = true;
                         } else {
                             lexer.pushback(s3);
@@ -1083,7 +1162,10 @@ public class ActionScript2Parser {
                     if (fc != null) { //can be empty command
                         forFirstCommands.add(fc);
                     }
-                    forExpr = (expression(inFunction, inMethod, true, variables, functions));
+                    forExpr = expression(inFunction, inMethod, true, variables, functions, false);
+                    if (forExpr == null) {
+                        forExpr = new TrueItem(null, null);
+                    }
                     expectedType(SymbolType.SEMICOLON);
                     GraphTargetItem fcom = command(inFunction, inMethod, forinlevel, true, variables, functions);
                     if (fcom != null) {
@@ -1101,7 +1183,7 @@ public class ActionScript2Parser {
                 break;
             case SWITCH:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem switchExpr = expression(inFunction, inMethod, true, variables, functions);
+                GraphTargetItem switchExpr = expression(inFunction, inMethod, true, variables, functions, false);
                 expectedType(SymbolType.PARENT_CLOSE);
                 expectedType(SymbolType.CURLY_OPEN);
                 s = lex();
@@ -1122,7 +1204,7 @@ public class ActionScript2Parser {
                 while (s.type == SymbolType.CASE || s.type == SymbolType.DEFAULT) {
                     //List<GraphTargetItem> caseExprs; = new ArrayList<>();
                     while (s.type == SymbolType.CASE || s.type == SymbolType.DEFAULT) {
-                        GraphTargetItem curCaseExpr = s.type == SymbolType.DEFAULT ? new DefaultItem() : expression(inFunction, inMethod, true, variables, functions);
+                        GraphTargetItem curCaseExpr = s.type == SymbolType.DEFAULT ? new DefaultItem() : expression(inFunction, inMethod, true, variables, functions, false);
                         //caseExprs.add(curCaseExpr);
                         expectedType(SymbolType.COLON);
                         s = lex();
@@ -1145,7 +1227,7 @@ public class ActionScript2Parser {
                 ret = new ContinueItem(null, null, 0); //? There is no more than 1 level continue/break in AS1/2
                 break;
             case RETURN:
-                GraphTargetItem retexpr = expression(inFunction, inMethod, true, variables, functions);
+                GraphTargetItem retexpr = expression(inFunction, inMethod, true, variables, functions, false);
                 if (retexpr == null) {
                     retexpr = new DirectValueActionItem(null, null, 0, Undefined.INSTANCE, new ArrayList<>());
                 }
@@ -1196,13 +1278,13 @@ public class ActionScript2Parser {
                 ret = new TryActionItem(tryCommands, catchExceptionNames, catchExceptionTypes, catchCommands, finallyCommands);
                 break;
             case THROW:
-                ret = new ThrowActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new ThrowActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 break;
             case SEMICOLON: //empty command
                 if (debugMode) {
                     System.out.println("/command");
                 }
-                return null;
+                return new EmptyCommand();
             default:
                 GraphTargetItem valcmd = expressionCommands(s, inFunction, inMethod, forinlevel, variables, functions);
                 if (valcmd != null) {
@@ -1210,7 +1292,7 @@ public class ActionScript2Parser {
                     break;
                 }
                 lexer.pushback(s);
-                ret = expression(inFunction, inMethod, true, variables, functions);
+                ret = expression(inFunction, inMethod, true, variables, functions, true);
         }
         if (debugMode) {
             System.out.println("/command");
@@ -1218,7 +1300,7 @@ public class ActionScript2Parser {
         lexer.removeListener(buf);
         if (ret == null) {  //can be popped expression
             buf.pushAllBack(lexer);
-            ret = expression(inFunction, inMethod, true, variables, functions);
+            ret = expression(inFunction, inMethod, true, variables, functions, false);
         }
         s = lex();
         if ((s != null) && (s.type != SymbolType.SEMICOLON)) {
@@ -1229,19 +1311,31 @@ public class ActionScript2Parser {
 
     }
 
-    private GraphTargetItem expression(boolean inFunction, boolean inMethod, boolean allowRemainder, List<VariableActionItem> variables, List<FunctionActionItem> functions) throws IOException, ActionParseException {
+    private GraphTargetItem expression(boolean inFunction, boolean inMethod, boolean allowRemainder, List<VariableActionItem> variables, List<FunctionActionItem> functions, boolean allowComma) throws IOException, ActionParseException {
         if (debugMode) {
             System.out.println("expression:");
         }
-        GraphTargetItem prim = expressionPrimary(false, inFunction, inMethod, allowRemainder, variables, functions);
-        if (prim == null) {
-            return null;
+        List<GraphTargetItem> commaItems = new ArrayList<>();
+        ParsedSymbol symb;
+        do {
+            GraphTargetItem prim = expressionPrimary(false, inFunction, inMethod, allowRemainder, variables, functions, true);
+            if (prim == null) {
+                return null;
+            }
+            GraphTargetItem expr = expression1(prim, GraphTargetItem.NOPRECEDENCE, inFunction, inMethod, allowRemainder, variables, functions);
+            commaItems.add(expr);
+            symb = lex();
+        } while (allowComma && symb != null && symb.type == SymbolType.COMMA);
+        if (symb != null) {
+            lexer.pushback(symb);
         }
-        GraphTargetItem ret = expression1(prim, GraphTargetItem.NOPRECEDENCE, inFunction, inMethod, allowRemainder, variables, functions);
         if (debugMode) {
             System.out.println("/expression");
         }
-        return ret;
+        if (commaItems.size() == 1) {
+            return commaItems.get(0);
+        }
+        return new CommaExpressionItem(null, null, commaItems);
     }
 
     private ParsedSymbol peekLex() throws IOException, ActionParseException {
@@ -1297,14 +1391,14 @@ public class ActionScript2Parser {
                 if (debugMode) {
                     System.out.println("ternar-middle:");
                 }
-                mhs = expression(inFunction, inMethod, allowRemainder, variables, functions);
+                mhs = expression(inFunction, inMethod, allowRemainder, variables, functions, false);
                 expectedType(SymbolType.COLON);
                 if (debugMode) {
                     System.out.println("/ternar-middle");
                 }
             }
 
-            rhs = expressionPrimary(allowRemainder, inFunction, inMethod, allowRemainder, variables, functions);
+            rhs = expressionPrimary(allowRemainder, inFunction, inMethod, allowRemainder, variables, functions, true);
             if (rhs == null) {
                 lexer.pushback(op);
                 break;
@@ -1391,16 +1485,9 @@ public class ActionScript2Parser {
                 case XOR:
                     lhs = new BitXorActionItem(null, null, lhs, rhs);
                     break;
-                case AS:
-
-                    break;
                 case INSTANCEOF:
                     lhs = new InstanceOfActionItem(null, null, lhs, rhs);
                     break;
-                case IS:
-
-                    break;
-
                 case ASSIGN:
                 case ASSIGN_BITAND:
                 case ASSIGN_BITOR:
@@ -1414,7 +1501,7 @@ public class ActionScript2Parser {
                 case ASSIGN_USHIFT_RIGHT:
                 case ASSIGN_XOR:
                     GraphTargetItem assigned = rhs;
-                    switch (lookahead.type) {
+                    switch (op.type) {
                         case ASSIGN:
                             //assigned = assigned;
                             break;
@@ -1453,9 +1540,13 @@ public class ActionScript2Parser {
                             break;
                     }
                     if (lhs instanceof VariableActionItem) {
-                        ((VariableActionItem) lhs).setStoreValue(assigned);
-                        ((VariableActionItem) lhs).setDefinition(false);
-                        lhs = lhs;
+                        if (assigned != rhs) {
+                            lhs = new VariableActionItem(((VariableActionItem) lhs).getVariableName(), assigned, false);
+                            variables.add((VariableActionItem) lhs);
+                        } else {
+                            ((VariableActionItem) lhs).setStoreValue(assigned);
+                            ((VariableActionItem) lhs).setDefinition(false);
+                        }
                     } else if (lhs instanceof GetMemberActionItem) {
                         lhs = new SetMemberActionItem(null, null, ((GetMemberActionItem) lhs).object, ((GetMemberActionItem) lhs).memberName, assigned);
                     } else {
@@ -1463,7 +1554,7 @@ public class ActionScript2Parser {
                     }
                     break;
                 case IDENTIFIER:
-                    switch (lookahead.value.toString()) {
+                    switch (op.value.toString()) {
                         case "add":
                             lhs = new StringAddActionItem(null, null, lhs, rhs);
                             break;
@@ -1505,15 +1596,6 @@ public class ActionScript2Parser {
                 }
                 lhs = new PostDecrementActionItem(null, null, lhs);
                 break;
-            default:
-                if (lhs instanceof ParenthesisItem) {
-                    if (isType(((ParenthesisItem) lhs).value)) {
-                        GraphTargetItem expr2 = expression(inFunction, inMethod, true, variables, functions);
-                        if (expr2 != null) {
-                            lhs = new CastOpActionItem(null, null, ((ParenthesisItem) lhs).value, expr2);
-                        }
-                    }
-                }
         }
         if (debugMode) {
             System.out.println("/expression1");
@@ -1542,7 +1624,7 @@ public class ActionScript2Parser {
                     lexer.pushback(s);
                 }
                 arrCnt++;
-                ret.add(expression(inFunction, inMethod, true, variables, functions));
+                ret.add(expression(inFunction, inMethod, true, variables, functions, false));
                 s = lex();
                 if (!s.isType(SymbolType.COMMA, SymbolType.BRACKET_CLOSE)) {
                     expected(s, lexer.yyline(), SymbolType.COMMA, SymbolType.BRACKET_CLOSE);
@@ -1555,27 +1637,7 @@ public class ActionScript2Parser {
         return arrCnt;
     }
 
-    private GraphTargetItem commaExpression(boolean inFunction, boolean inMethod, int forInLevel, List<VariableActionItem> variables, List<FunctionActionItem> functions) throws IOException, ActionParseException {
-        GraphTargetItem cmd = null;
-        List<GraphTargetItem> expr = new ArrayList<>();
-        ParsedSymbol s;
-        do {
-            cmd = command(inFunction, inMethod, forInLevel, false, variables, functions);
-            if (cmd != null) {
-                expr.add(cmd);
-            }
-            s = lex();
-        } while (s.type == SymbolType.COMMA && cmd != null);
-        lexer.pushback(s);
-        if (cmd == null) {
-            expr.add(expression(inFunction, inMethod, true, variables, functions));
-        } else if (!cmd.hasReturnValue()) {
-            throw new ActionParseException("Expression expected", lexer.yyline());
-        }
-        return new CommaExpressionItem(null, null, expr);
-    }
-
-    private GraphTargetItem expressionPrimary(boolean allowEmpty, boolean inFunction, boolean inMethod, boolean allowRemainder, List<VariableActionItem> variables, List<FunctionActionItem> functions) throws IOException, ActionParseException {
+    private GraphTargetItem expressionPrimary(boolean allowEmpty, boolean inFunction, boolean inMethod, boolean allowRemainder, List<VariableActionItem> variables, List<FunctionActionItem> functions, boolean allowCall) throws IOException, ActionParseException {
         if (debugMode) {
             System.out.println("primary:");
         }
@@ -1595,14 +1657,14 @@ public class ActionScript2Parser {
                         ret = new UnresolvedConstantActionItem((int) (long) (Long) s.value);
                         break;
                     case "enumerate":
-                        ret = new EnumerateActionItem(null, null, expression(inFunction, inMethod, allowRemainder, variables, functions));
+                        ret = new EnumerateActionItem(null, null, expression(inFunction, inMethod, allowRemainder, variables, functions, false));
                         break;
                     //Both ASs
                     case "dup":
-                        ret = new DuplicateItem(null, null, expression(inFunction, inMethod, allowRemainder, variables, functions));
+                        ret = new DuplicateItem(null, null, expression(inFunction, inMethod, allowRemainder, variables, functions, false));
                         break;
                     case "push":
-                        ret = new PushItem(expression(inFunction, inMethod, allowRemainder, variables, functions));
+                        ret = new PushItem(expression(inFunction, inMethod, allowRemainder, variables, functions, false));
                         break;
                     case "pop":
                         ret = new PopItem(null, null);
@@ -1617,7 +1679,7 @@ public class ActionScript2Parser {
                 break;
             case NEGATE:
                 versionRequired(s, 5);
-                ret = expressionPrimary(false, inFunction, inMethod, false, variables, functions);
+                ret = expressionPrimary(false, inFunction, inMethod, false, variables, functions, true);
                 ret = new BitXorActionItem(null, null, ret, new DirectValueActionItem(4.294967295E9));
 
                 break;
@@ -1631,7 +1693,7 @@ public class ActionScript2Parser {
 
                 } else {
                     lexer.pushback(s);
-                    GraphTargetItem num = expressionPrimary(false, inFunction, inMethod, true, variables, functions);
+                    GraphTargetItem num = expressionPrimary(false, inFunction, inMethod, true, variables, functions, true);
                     if ((num instanceof DirectValueActionItem)
                             && (((DirectValueActionItem) num).value instanceof Long)) {
                         ((DirectValueActionItem) num).value = -(Long) ((DirectValueActionItem) num).value;
@@ -1655,7 +1717,7 @@ public class ActionScript2Parser {
                 }
                 break;
             case TYPEOF:
-                ret = new TypeOfActionItem(null, null, expressionPrimary(false, inFunction, inMethod, false, variables, functions));
+                ret = new TypeOfActionItem(null, null, expressionPrimary(false, inFunction, inMethod, false, variables, functions, true));
                 allowMemberOrCall = true;
                 break;
             case TRUE:
@@ -1685,7 +1747,7 @@ public class ActionScript2Parser {
                     expected(s, lexer.yyline(), SymbolType.IDENTIFIER);
                     objectNames.add(0, pushConst((String) s.value));
                     expectedType(SymbolType.COLON);
-                    objectValues.add(0, expression(inFunction, inMethod, true, variables, functions));
+                    objectValues.add(0, expression(inFunction, inMethod, true, variables, functions, false));
                     s = lex();
                     if (!s.isType(SymbolType.COMMA, SymbolType.CURLY_CLOSE)) {
                         expected(s, lexer.yyline(), SymbolType.COMMA, SymbolType.CURLY_CLOSE);
@@ -1734,7 +1796,7 @@ public class ActionScript2Parser {
 
                 break;
             case DELETE:
-                GraphTargetItem varDel = expressionPrimary(false, inFunction, inMethod, false, variables, functions);
+                GraphTargetItem varDel = expressionPrimary(false, inFunction, inMethod, false, variables, functions, true);
                 if (varDel instanceof GetMemberActionItem) {
                     GetMemberActionItem gm = (GetMemberActionItem) varDel;
                     ret = new DeleteActionItem(null, null, gm.object, gm.memberName);
@@ -1744,7 +1806,7 @@ public class ActionScript2Parser {
                 break;
             case INCREMENT:
             case DECREMENT: //preincrement
-                GraphTargetItem prevar = expressionPrimary(false, inFunction, inMethod, false, variables, functions);//variable(inFunction, inMethod, variables, functions);
+                GraphTargetItem prevar = expressionPrimary(false, inFunction, inMethod, false, variables, functions, true);//variable(inFunction, inMethod, variables, functions);
                 if (s.type == SymbolType.INCREMENT) {
                     ret = new PreIncrementActionItem(null, null, prevar);
                 }
@@ -1754,31 +1816,43 @@ public class ActionScript2Parser {
 
                 break;
             case NOT:
-                ret = new NotItem(null, null, expressionPrimary(false, inFunction, inMethod, false, variables, functions));
+                ret = new NotItem(null, null, expressionPrimary(false, inFunction, inMethod, false, variables, functions, true));
 
                 break;
             case PARENT_OPEN:
-                ret = new ParenthesisItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                ret = new ParenthesisItem(null, null, expression(inFunction, inMethod, true, variables, functions, true));
                 expectedType(SymbolType.PARENT_CLOSE);
                 //ret = memberOrCall(ret, inFunction, inMethod, variables, functions);
                 allowMemberOrCall = true;
                 break;
             case NEW:
-                GraphTargetItem newvar = expressionPrimary(false, inFunction, inMethod, false, variables, functions);//variable(inFunction, inMethod, variables, functions);
-                if (newvar instanceof CallMethodActionItem) {
-                    CallMethodActionItem ca = (CallMethodActionItem) newvar;
-                    ret = new NewMethodActionItem(null, null, ca.scriptObject, ca.methodName, ca.arguments);
-                } else if (newvar instanceof CallFunctionActionItem) {
-                    CallFunctionActionItem cf = (CallFunctionActionItem) newvar;
-                    ret = new NewObjectActionItem(null, null, cf.functionName, cf.arguments);
+                GraphTargetItem newvar = expressionPrimary(false, inFunction, inMethod, false, variables, functions, false);//variable(inFunction, inMethod, variables, functions);
+                if (newvar instanceof ToNumberActionItem) {
+                    List<GraphTargetItem> args = new ArrayList<>();
+                    if (((ToNumberActionItem) newvar).value != null) {
+                        args.add(((ToNumberActionItem) newvar).value);
+                    }
+                    ret = new NewObjectActionItem(null, null, pushConst("Number"), args);
+                } else if (newvar instanceof GetMemberActionItem) {
+
+                    GetMemberActionItem ca = (GetMemberActionItem) newvar;
+                    expectedType(SymbolType.PARENT_OPEN);
+                    List<GraphTargetItem> args = call(inFunction, inMethod, variables, functions);
+                    ret = new NewMethodActionItem(null, null, ca.object, ca.memberName, args);
+                } else if (newvar instanceof VariableActionItem) {
+                    VariableActionItem cf = (VariableActionItem) newvar;
+                    expectedType(SymbolType.PARENT_OPEN);
+                    List<GraphTargetItem> args = call(inFunction, inMethod, variables, functions);
+                    ret = new NewObjectActionItem(null, null, pushConst(cf.getVariableName()), args);
                 } else {
                     throw new ActionParseException("Invalid new item", lexer.yyline());
                 }
+                allowMemberOrCall = true;
 
                 break;
             case EVAL:
                 expectedType(SymbolType.PARENT_OPEN);
-                GraphTargetItem evar = new EvalActionItem(null, null, expression(inFunction, inMethod, true, variables, functions));
+                GraphTargetItem evar = new EvalActionItem(null, null, expression(inFunction, inMethod, true, variables, functions, false));
                 expectedType(SymbolType.PARENT_CLOSE);
                 //evar = memberOrCall(evar, inFunction, inMethod, variables, functions);
                 ret = evar;
@@ -1790,16 +1864,19 @@ public class ActionScript2Parser {
             case SUPER:
             case PATH:
                 if (s.value.equals("not")) {
-                    ret = new NotItem(null, null, expressionPrimary(false, inFunction, inMethod, false, variables, functions));
+                    ret = new NotItem(null, null, expressionPrimary(false, inFunction, inMethod, false, variables, functions, true));
                 } else {
-                    if (s.type == SymbolType.PATH) {
-                        expectedType(SymbolType.COLON);
-                        ParsedSymbol s2 = lex();
+                    String varName = s.value.toString();
+                    ParsedSymbol s2 = lex();
+                    while (s2.type == SymbolType.COLON) {
+                        s2 = lex();
                         expected(s2, lexer.yyline(), SymbolType.IDENTIFIER);
-                        ret = new VariableActionItem(s.value.toString() + ":" + s2.value.toString(), null, false);
-                    } else {
-                        ret = new VariableActionItem(s.value.toString(), null, false);
+                        varName += ":" + s2.value.toString();
+                        s2 = lex();
                     }
+                    lexer.pushback(s2);
+
+                    ret = new VariableActionItem(varName, null, false);
                     variables.add((VariableActionItem) ret);
                     allowMemberOrCall = true;
                 }
@@ -1817,7 +1894,7 @@ public class ActionScript2Parser {
         }
 
         if (allowMemberOrCall && ret != null) {
-            ret = memberOrCall(ret, inFunction, inMethod, variables, functions);
+            ret = memberOrCall(ret, inFunction, inMethod, variables, functions, allowCall);
         }
         if (debugMode) {
             System.out.println("/primary");
@@ -1825,12 +1902,45 @@ public class ActionScript2Parser {
         return ret;
     }
 
-    private GraphTargetItem memberOrCall(GraphTargetItem ret, boolean inFunction, boolean inMethod, List<VariableActionItem> variables, List<FunctionActionItem> functions) throws IOException, ActionParseException {
+    private boolean isCastOp(GraphTargetItem item) {
+        LocalData localData = LocalData.create(new ConstantPool(constantPool));
+        List<String> items = new ArrayList<>();
+        while (item instanceof GetMemberActionItem) {
+            GetMemberActionItem mem = (GetMemberActionItem) item;
+            if (mem.memberName instanceof DirectValueActionItem) {
+                items.add(0, mem.memberName.toStringNoQuotes(localData));
+            }
+            item = mem.object;
+        }
+        if (item instanceof VariableActionItem) {
+            VariableActionItem v = (VariableActionItem) item;
+            items.add(0, v.getVariableName());
+        }
+
+        if (items.isEmpty()) {
+            return false;
+        }
+        String fullName = String.join(".", items);
+        if (BUILTIN_CASTS.contains(fullName)) {
+            return true;
+        }
+        if (swfClasses.contains(fullName)) {
+            return true;
+        }
+        return false;
+    }
+
+    private GraphTargetItem memberOrCall(GraphTargetItem ret, boolean inFunction, boolean inMethod, List<VariableActionItem> variables, List<FunctionActionItem> functions, boolean allowCall) throws IOException, ActionParseException {
         ParsedSymbol op = lex();
         while (op.isType(SymbolType.PARENT_OPEN, SymbolType.BRACKET_OPEN, SymbolType.DOT)) {
             if (op.type == SymbolType.PARENT_OPEN) {
+                if (!allowCall) {
+                    break;
+                }
                 List<GraphTargetItem> args = call(inFunction, inMethod, variables, functions);
-                if (ret instanceof GetMemberActionItem) {
+                if (isCastOp(ret) && args.size() == 1) {
+                    ret = new CastOpActionItem(null, null, ret, args.get(0));
+                } else if (ret instanceof GetMemberActionItem) {
                     GetMemberActionItem mem = (GetMemberActionItem) ret;
                     ret = new CallMethodActionItem(null, null, mem.object, mem.memberName, args);
                 } else if (ret instanceof VariableActionItem) {
@@ -1841,7 +1951,7 @@ public class ActionScript2Parser {
                 }
             }
             if (op.type == SymbolType.BRACKET_OPEN) {
-                GraphTargetItem rhs = expression(inFunction, inMethod, false, variables, functions);
+                GraphTargetItem rhs = expression(inFunction, inMethod, false, variables, functions, false);
                 ret = new GetMemberActionItem(null, null, ret, rhs);
                 expectedType(SymbolType.BRACKET_CLOSE);
             }
@@ -1883,6 +1993,172 @@ public class ActionScript2Parser {
         this.constantPool = constantPool;
         lexer = new ActionScriptLexer(new StringReader(str));
 
+        BUTTONCONDACTION newButtonCond = new BUTTONCONDACTION();
+
+        if (targetSource instanceof BUTTONCONDACTION) {
+            ParsedSymbol symb = lexer.lex();
+            if (symb.type != SymbolType.IDENTIFIER || !"on".equals(symb.value)) {
+                throw new ActionParseException("on keyword expected but " + symb + " found", lexer.yyline());
+            }
+            expectedType(SymbolType.PARENT_OPEN);
+            symb = lexer.lex();
+            boolean condEmpty = true;
+            while (symb.type == SymbolType.IDENTIFIER) {
+                condEmpty = false;
+                switch ((String) symb.value) {
+                    case "press":
+                        newButtonCond.condOverUpToOverDown = true;
+                        break;
+                    case "release":
+                        newButtonCond.condOverDownToOverUp = true;
+                        break;
+                    case "releaseOutside":
+                        newButtonCond.condOutDownToIdle = true;
+                        break;
+                    case "rollOver":
+                        newButtonCond.condIdleToOverUp = true;
+                        break;
+                    case "rollOut":
+                        newButtonCond.condOverUpToIddle = true;
+                        break;
+                    case "dragOut":
+                        newButtonCond.condOverDownToOutDown = true;
+                        break;
+                    case "dragOver":
+                        newButtonCond.condOutDownToOverDown = true;
+                        break;
+                    case "keyPress":
+                        symb = lexer.lex();
+                        expected(symb, lexer.yyline(), SymbolType.STRING);
+                        Integer key = CLIPACTIONRECORD.stringToKey((String) symb.value);
+                        if (key == null) {
+                            throw new ActionParseException("Invalid key", lexer.yyline());
+                        }
+                        newButtonCond.condKeyPress = key;
+                        break;
+                    default:
+                        throw new ActionParseException("Unrecognized event type", lexer.yyline());
+                }
+                symb = lexer.lex();
+                if (symb.type == SymbolType.PARENT_CLOSE) {
+                    break;
+                }
+                expected(symb, lexer.yyline(), SymbolType.COMMA);
+                symb = lexer.lex();
+            }
+            expected(symb, lexer.yyline(), SymbolType.PARENT_CLOSE);
+            if (condEmpty) {
+                throw new ActionParseException("condition must be non empty", lexer.yyline());
+            }
+            expectedType(SymbolType.CURLY_OPEN);
+        }
+
+        CLIPEVENTFLAGS newClipEventFlags = new CLIPEVENTFLAGS();
+        int newClipActionRecordKey = 0;
+        if (targetSource instanceof CLIPACTIONRECORD) {
+            ParsedSymbol symb = lexer.lex();
+            if (symb.type != SymbolType.IDENTIFIER || (!"on".equals(symb.value) && !"onClipEvent".equals(symb.value))) {
+                throw new ActionParseException("on or onClipEvent keyword expected but " + symb + " found", lexer.yyline());
+            }
+            expectedType(SymbolType.PARENT_OPEN);
+            if ("on".equals(symb.value)) {
+                symb = lexer.lex();
+                boolean condEmpty = true;
+                while (symb.type == SymbolType.IDENTIFIER) {
+                    condEmpty = false;
+                    switch ((String) symb.value) {
+                        case "press":
+                            newClipEventFlags.clipEventPress = true;
+                            break;
+                        case "release":
+                            newClipEventFlags.clipEventRelease = true;
+                            break;
+                        case "releaseOutside":
+                            newClipEventFlags.clipEventReleaseOutside = true;
+                            break;
+                        case "rollOver":
+                            newClipEventFlags.clipEventRollOver = true;
+                            break;
+                        case "rollOut":
+                            newClipEventFlags.clipEventRollOut = true;
+                            break;
+                        case "dragOut":
+                            newClipEventFlags.clipEventDragOut = true;
+                            break;
+                        case "dragOver":
+                            newClipEventFlags.clipEventDragOver = true;
+                            break;
+                        case "initialize":
+                            newClipEventFlags.clipEventInitialize = true;
+                            break;
+                        case "construct":
+                            newClipEventFlags.clipEventConstruct = true;
+                            break;
+
+                        case "keyPress":
+                            symb = lexer.lex();
+                            expected(symb, lexer.yyline(), SymbolType.STRING);
+                            Integer key = CLIPACTIONRECORD.stringToKey((String) symb.value);
+                            if (key == null) {
+                                throw new ActionParseException("Invalid key", lexer.yyline());
+                            }
+                            newClipActionRecordKey = key;
+                            newClipEventFlags.clipEventKeyPress = true;
+                            break;
+                        default:
+                            throw new ActionParseException("Unrecognized event type", lexer.yyline());
+                    }
+                    symb = lexer.lex();
+                    if (symb.type == SymbolType.PARENT_CLOSE) {
+                        break;
+                    }
+                    expected(symb, lexer.yyline(), SymbolType.COMMA);
+                    symb = lexer.lex();
+                }
+                expected(symb, lexer.yyline(), SymbolType.PARENT_CLOSE);
+                if (condEmpty) {
+                    throw new ActionParseException("condition must be non empty", lexer.yyline());
+                }
+            } else if ("onClipEvent".equals(symb.value)) {
+                symb = lexer.lex();
+                expected(symb, lexer.yyline(), SymbolType.IDENTIFIER);
+
+                switch ((String) symb.value) {
+                    case "keyUp":
+                        newClipEventFlags.clipEventKeyUp = true;
+                        break;
+                    case "keyDown":
+                        newClipEventFlags.clipEventKeyDown = true;
+                        break;
+                    case "mouseUp":
+                        newClipEventFlags.clipEventMouseUp = true;
+                        break;
+                    case "mouseDown":
+                        newClipEventFlags.clipEventMouseDown = true;
+                        break;
+                    case "mouseMove":
+                        newClipEventFlags.clipEventMouseMove = true;
+                        break;
+                    case "unload":
+                        newClipEventFlags.clipEventUnload = true;
+                        break;
+                    case "enterFrame":
+                        newClipEventFlags.clipEventEnterFrame = true;
+                        break;
+                    case "load":
+                        newClipEventFlags.clipEventLoad = true;
+                        break;
+                    case "data":
+                        newClipEventFlags.clipEventData = true;
+                        break;
+                    default:
+                        throw new ActionParseException("Unrecognized clipEvent type", lexer.yyline());
+                }
+                expectedType(SymbolType.PARENT_CLOSE);
+            }
+            expectedType(SymbolType.CURLY_OPEN);
+        }
+
         List<VariableActionItem> vars = new ArrayList<>();
         List<FunctionActionItem> functions = new ArrayList<>();
         retTree.addAll(commands(false, false, 0, vars, functions));
@@ -1921,8 +2197,33 @@ public class ActionScript2Parser {
                 v.setBoxedValue(new GetVariableActionItem(null, null, pushConst(varName)));
             }
         }
+
+        if ((targetSource instanceof BUTTONCONDACTION) || (targetSource instanceof CLIPACTIONRECORD)) {
+            expectedType(SymbolType.CURLY_CLOSE);
+        }
+
         if (lexer.lex().type != SymbolType.EOF) {
             throw new ActionParseException("Parsing finished before end of the file", lexer.yyline());
+        }
+        if (targetSource instanceof BUTTONCONDACTION) {
+            BUTTONCONDACTION targetButtonCond = (BUTTONCONDACTION) targetSource;
+            targetButtonCond.condIdleToOverDown = newButtonCond.condIdleToOverDown;
+            targetButtonCond.condIdleToOverUp = newButtonCond.condIdleToOverUp;
+            targetButtonCond.condOutDownToIdle = newButtonCond.condOutDownToIdle;
+            targetButtonCond.condOutDownToOverDown = newButtonCond.condOutDownToOverDown;
+            targetButtonCond.condOverDownToIdle = newButtonCond.condOverDownToIdle;
+            targetButtonCond.condOverDownToOutDown = newButtonCond.condOverDownToOutDown;
+            targetButtonCond.condOverDownToOverUp = newButtonCond.condOverDownToOverUp;
+            targetButtonCond.condOverUpToIddle = newButtonCond.condOverUpToIddle;
+            targetButtonCond.condOverUpToOverDown = newButtonCond.condOverUpToOverDown;
+            targetButtonCond.condKeyPress = newButtonCond.condKeyPress;
+        }
+
+        if (targetSource instanceof CLIPACTIONRECORD) {
+            CLIPACTIONRECORD targetClipActionRecord = (CLIPACTIONRECORD) targetSource;
+            targetClipActionRecord.eventFlags = newClipEventFlags;
+            targetClipActionRecord.keyCode = newClipActionRecordKey;
+            targetClipActionRecord.getParentClipActions().calculateAllEventFlags();
         }
         return retTree;
     }

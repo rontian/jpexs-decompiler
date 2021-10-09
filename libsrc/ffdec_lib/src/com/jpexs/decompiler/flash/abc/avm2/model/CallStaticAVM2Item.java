@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,15 +12,18 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
+import java.util.Objects;
 
 /**
  *
@@ -39,6 +42,12 @@ public class CallStaticAVM2Item extends AVM2Item {
         this.receiver = receiver;
         this.methodName = methodName;
         this.arguments = arguments;
+    }
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(receiver);
+        visitor.visitAll(arguments);
     }
 
     @Override
@@ -64,6 +73,44 @@ public class CallStaticAVM2Item extends AVM2Item {
 
     @Override
     public boolean hasReturnValue() {
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 29 * hash + Objects.hashCode(this.receiver);
+        hash = 29 * hash + Objects.hashCode(this.methodName);
+        hash = 29 * hash + Objects.hashCode(this.arguments);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final CallStaticAVM2Item other = (CallStaticAVM2Item) obj;
+        if (!Objects.equals(this.methodName, other.methodName)) {
+            return false;
+        }
+        if (!Objects.equals(this.receiver, other.receiver)) {
+            return false;
+        }
+        if (!Objects.equals(this.arguments, other.arguments)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean hasSideEffect() {
         return true;
     }
 }

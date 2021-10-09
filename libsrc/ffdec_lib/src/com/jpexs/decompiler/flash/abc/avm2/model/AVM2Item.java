@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,6 +21,7 @@ import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
+import com.jpexs.decompiler.flash.abc.avm2.model.clauses.ExceptionAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.parser.script.AVM2SourceGenerator;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -71,7 +72,7 @@ public abstract class AVM2Item extends GraphTargetItem {
     }
 
     protected GraphTextWriter formatProperty(GraphTextWriter writer, GraphTargetItem object, GraphTargetItem propertyName, LocalData localData) throws InterruptedException {
-        boolean empty = object instanceof FindPropertyAVM2Item;
+        boolean empty = object.getThroughDuplicate() instanceof FindPropertyAVM2Item;
         if (object instanceof LocalRegAVM2Item) {
             if (((LocalRegAVM2Item) object).computedValue != null) {
                 if (((LocalRegAVM2Item) object).computedValue.getThroughNotCompilable() instanceof FindPropertyAVM2Item) {
@@ -80,8 +81,8 @@ public abstract class AVM2Item extends GraphTargetItem {
             }
         }
 
-        if (object instanceof FindPropertyAVM2Item) {
-            FindPropertyAVM2Item fp = (FindPropertyAVM2Item) object;
+        if (object.getThroughDuplicate() instanceof FindPropertyAVM2Item) {
+            FindPropertyAVM2Item fp = (FindPropertyAVM2Item) object.getThroughDuplicate();
             if (fp.propertyName instanceof FullMultinameAVM2Item) {
                 propertyName = fp.propertyName;
             }
@@ -171,5 +172,52 @@ public abstract class AVM2Item extends GraphTargetItem {
     public static void killRegister(SourceGeneratorLocalData localData, SourceGenerator generator, int regNumber) {
         AVM2SourceGenerator g = (AVM2SourceGenerator) generator;
         g.killRegister(localData, regNumber);
+    }
+
+    @Override
+    public boolean isIdentical(GraphTargetItem other) {
+        GraphTargetItem tiName = this;
+        while (tiName instanceof LocalRegAVM2Item) {
+            if (((LocalRegAVM2Item) tiName).computedValue != null) {
+                tiName = ((LocalRegAVM2Item) tiName).computedValue.getThroughNotCompilable().getThroughDuplicate();
+            } else {
+                break;
+            }
+        }
+
+        GraphTargetItem tiName2 = other;
+        if (tiName2 != null) {
+            tiName2 = tiName2.getThroughDuplicate();
+        }
+        while (tiName2 instanceof LocalRegAVM2Item) {
+            if (((LocalRegAVM2Item) tiName2).computedValue != null) {
+                tiName2 = ((LocalRegAVM2Item) tiName2).computedValue.getThroughNotCompilable().getThroughDuplicate();
+            } else {
+                break;
+            }
+        }
+        if (tiName != tiName2) {
+            return false;
+        }
+        return true;
+    }
+
+    public static boolean mustStayIntact1(GraphTargetItem target) {
+        target = target.getNotCoerced();
+        if (target instanceof ExceptionAVM2Item) {
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean mustStayIntact2(GraphTargetItem target) {
+        target = target.getNotCoerced();
+        if (target instanceof NextValueAVM2Item) {
+            return true;
+        }
+        if (target instanceof NextNameAVM2Item) {
+            return true;
+        }
+        return false;
     }
 }

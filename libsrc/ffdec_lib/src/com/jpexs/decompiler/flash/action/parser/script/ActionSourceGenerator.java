@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,6 @@ import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.model.FunctionActionItem;
 import com.jpexs.decompiler.flash.action.model.GetMemberActionItem;
 import com.jpexs.decompiler.flash.action.model.GetVariableActionItem;
-import com.jpexs.decompiler.flash.action.model.operations.Inverted;
 import com.jpexs.decompiler.flash.action.swf4.ActionGetVariable;
 import com.jpexs.decompiler.flash.action.swf4.ActionIf;
 import com.jpexs.decompiler.flash.action.swf4.ActionJump;
@@ -136,8 +135,8 @@ public class ActionSourceGenerator implements SourceGenerator {
 
     private List<GraphSourceItem> generateIf(SourceGeneratorLocalData localData, GraphTargetItem expression, List<GraphTargetItem> onTrueCmds, List<GraphTargetItem> onFalseCmds, boolean ternar) throws CompilationException {
         List<GraphSourceItem> ret = new ArrayList<>();
-        if (expression instanceof Inverted) {
-            ret.addAll(((Inverted) expression).invert(null).toSource(localData, this));
+        if (expression instanceof NotItem) {
+            ret.addAll(expression.value.toSource(localData, this));
         } else {
             ret.addAll(expression.toSource(localData, this));
             ret.add(new ActionNot());
@@ -418,10 +417,9 @@ public class ActionSourceGenerator implements SourceGenerator {
 
     @Override
     public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, NotItem item) throws CompilationException {
-        if (item.getOriginal() instanceof Inverted) {
-            GraphTargetItem norig = ((Inverted) item).invert(null);
-            return norig.toSource(localData, this);
-        }
+        /*if (item.value instanceof NotItem) {
+            return item.value.value.toSource(localData, this);
+        }*/
         List<GraphSourceItem> ret = new ArrayList<>();
         ret.addAll(item.getOriginal().toSource(localData, this));
         ret.add(new ActionNot());
@@ -793,7 +791,7 @@ public class ActionSourceGenerator implements SourceGenerator {
     }
 
     @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, CommaExpressionItem item) throws CompilationException {
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, CommaExpressionItem item, boolean withReturnValue) throws CompilationException {
         if (item.commands.isEmpty()) {
             return new ArrayList<>();
         }
@@ -803,7 +801,7 @@ public class ActionSourceGenerator implements SourceGenerator {
         GraphTargetItem lastExpr = cmds.remove(cmds.size() - 1);
         List<GraphSourceItem> ret = new ArrayList<>();
         ret.addAll(generate(localData, cmds));
-        ret.addAll(lastExpr.toSource(localData, this));
+        ret.addAll(withReturnValue ? lastExpr.toSource(localData, this) : lastExpr.toSourceIgnoreReturnValue(localData, this));
         return ret;
     }
 

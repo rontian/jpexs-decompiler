@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,6 +31,8 @@ import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.decompiler.flash.types.ARGB;
 import com.jpexs.decompiler.flash.types.BasicType;
+import com.jpexs.decompiler.flash.types.CLIPACTIONRECORD;
+import com.jpexs.decompiler.flash.types.CLIPACTIONS;
 import com.jpexs.decompiler.flash.types.RGB;
 import com.jpexs.decompiler.flash.types.RGBA;
 import com.jpexs.decompiler.flash.types.annotations.Conditional;
@@ -79,7 +81,6 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
 import javax.swing.JTree;
 import javax.swing.UIManager;
 import javax.swing.event.TreeModelListener;
@@ -299,7 +300,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
         setLayout(new BorderLayout());
         tree = new MyTree();
 
-        add(new JScrollPane(tree), BorderLayout.CENTER);
+        add(new FasterScrollPane(tree), BorderLayout.CENTER);
         tree.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -343,8 +344,19 @@ public class GenericTagTreePanel extends GenericTagPanel {
                                         JMenu mBefore = new JMenu(AppStrings.translate("generictag.array.insertbefore").replace("%item%", itemStr));
                                         p.add(mBefore);
                                         mi = new JMenuItem(AppStrings.translate("generictag.array.remove").replace("%item%", itemStr));
-                                        mi.addActionListener((ActionEvent e1) -> {
-                                            removeItem(fnode.obj, fnode.fieldSet.get(FIELD_INDEX), fnode.index);
+                                        mi.addActionListener(new ActionListener() {
+                                            @Override
+                                            public void actionPerformed(ActionEvent e) {
+                                                TreePath tps[] = tree.getSelectionPaths();
+                                                for (int t = tps.length - 1; t >= 0; t--) {
+                                                    TreePath tp = tps[t];
+                                                    Object selObject = tp.getLastPathComponent();
+                                                    if (selObject instanceof FieldNode) {
+                                                        final FieldNode fnode = (FieldNode) selObject;
+                                                        removeItem(fnode.obj, fnode.fieldSet.get(FIELD_INDEX), fnode.index);
+                                                    }
+                                                }
+                                            }
                                         });
                                         p.add(mi);
                                         JMenu mAfter = new JMenu(AppStrings.translate("generictag.array.insertafter").replace("%item%", itemStr));
@@ -409,7 +421,15 @@ public class GenericTagTreePanel extends GenericTagPanel {
                                             mi.addActionListener(new ActionListener() {
                                                 @Override
                                                 public void actionPerformed(ActionEvent e) {
-                                                    removeItem(fnode.obj, fnode.fieldSet.get(FIELD_INDEX), fnode.index);
+                                                    TreePath tps[] = tree.getSelectionPaths();
+                                                    for (int t = tps.length - 1; t >= 0; t--) {
+                                                        TreePath tp = tps[t];
+                                                        Object selObject = tp.getLastPathComponent();
+                                                        if (selObject instanceof FieldNode) {
+                                                            final FieldNode fnode = (FieldNode) selObject;
+                                                            removeItem(fnode.obj, fnode.fieldSet.get(FIELD_INDEX), fnode.index);
+                                                        }
+                                                    }
                                                 }
                                             });
                                             p.add(mi);
@@ -465,7 +485,11 @@ public class GenericTagTreePanel extends GenericTagPanel {
 
     @Override
     public void clear() {
-
+        tag = null;
+        editedTag = null;
+        tree.setModel(new DefaultTreeModel(new DefaultMutableTreeNode("root")));
+        revalidate();
+        repaint();
     }
 
     private static final class TableFieldNodes extends DefaultMutableTreeNode {
@@ -918,6 +942,9 @@ public class GenericTagTreePanel extends GenericTagPanel {
     }
 
     private TreeModel getModel() {
+        if (editedTag == null) {
+            return new DefaultTreeModel(new DefaultMutableTreeNode("root"));
+        }
         return new MyTreeModel(editedTag);
     }
 
@@ -928,7 +955,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
         }
         this.tag = tag;
         try {
-            editedTag = tag.cloneTag();
+            editedTag = tag == null ? null : tag.cloneTag();
         } catch (InterruptedException ex) {
         } catch (IOException ex) {
             logger.log(Level.SEVERE, null, ex);
@@ -1168,12 +1195,19 @@ public class GenericTagTreePanel extends GenericTagPanel {
                 return;
             }
             ReflectionTools.addToField(obj, field, index, true, cls);
+
             try {
                 Object v = ReflectionTools.getValue(obj, field, index);
                 if (v instanceof ASMSource) {
                     ASMSource asv = (ASMSource) v;
                     asv.setSourceTag(editedTag);
                 }
+
+                //Hack to set CLIPACTIONRECORD parent
+                if ((obj instanceof CLIPACTIONS) && (v instanceof CLIPACTIONRECORD)) {
+                    ((CLIPACTIONRECORD) v).setParentClipActions((CLIPACTIONS) obj);
+                }
+
             } catch (IllegalArgumentException | IllegalAccessException ex) {
                 //ignore
             }

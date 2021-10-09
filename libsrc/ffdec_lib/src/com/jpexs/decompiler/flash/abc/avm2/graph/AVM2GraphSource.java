@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,9 +22,7 @@ import com.jpexs.decompiler.flash.abc.AVM2LocalData;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.ConvertOutput;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
-import com.jpexs.helpers.Reference;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
-import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSource;
@@ -32,6 +30,7 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.ScopeStack;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -120,7 +119,7 @@ public class AVM2GraphSource extends GraphSource {
         List<GraphTargetItem> ret = new ArrayList<>();
         ScopeStack newstack = ((AVM2LocalData) localData).scopeStack;
         Reference<GraphSourceItem> lineStartItem = new Reference<>(localData.lineStartInstruction);
-        ConvertOutput co = code.toSourceOutput(((AVM2LocalData) localData).thisHasDefaultToPrimitive, lineStartItem, path, part, false, isStatic, scriptIndex, classIndex, localRegs, stack, newstack, abc, body, start, end, localRegNames, fullyQualifiedNames, new boolean[size()], localRegAssigmentIps, refs);
+        ConvertOutput co = code.toSourceOutput(((AVM2LocalData) localData).setLocalPosToGetLocalPos, ((AVM2LocalData) localData).thisHasDefaultToPrimitive, lineStartItem, path, part, false, isStatic, scriptIndex, classIndex, localRegs, stack, newstack, abc, body, start, end, localRegNames, fullyQualifiedNames, new boolean[size()], localRegAssigmentIps, refs);
         localData.lineStartInstruction = lineStartItem.getVal();
         ret.addAll(co.output);
         return ret;
@@ -134,5 +133,10 @@ public class AVM2GraphSource extends GraphSource {
     @Override
     public long pos2adr(int pos) {
         return code.pos2adr(pos);
+    }
+
+    @Override
+    public int adr2pos(long adr, boolean nearest) {
+        return code.adr2pos(adr, true);
     }
 }

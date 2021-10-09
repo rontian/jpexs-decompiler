@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -28,7 +29,9 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.ScopeStack;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 
 /**
  *
@@ -52,7 +55,9 @@ public class NewFunctionAVM2Item extends AVM2Item {
 
     public int methodIndex;
 
-    public NewFunctionAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, String functionName, String path, boolean isStatic, int scriptIndex, int classIndex, ABC abc, List<DottedChain> fullyQualifiedNames, int methodIndex) {
+    public ScopeStack scopeStack;
+
+    public NewFunctionAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, String functionName, String path, boolean isStatic, int scriptIndex, int classIndex, ABC abc, List<DottedChain> fullyQualifiedNames, int methodIndex, ScopeStack scopeStack) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.functionName = functionName;
         this.path = path;
@@ -62,10 +67,15 @@ public class NewFunctionAVM2Item extends AVM2Item {
         this.abc = abc;
         this.fullyQualifiedNames = fullyQualifiedNames;
         this.methodIndex = methodIndex;
+        this.scopeStack = scopeStack;
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
+        if (localData.seenMethods.contains(methodIndex)) {
+            return writer.append("§§method(").append(methodIndex).append(")");
+        }
+        //if (methodIndex == 9141)
         MethodBody body = abc.findBody(methodIndex);
         writer.append("function");
         writer.startMethod(methodIndex);
@@ -83,8 +93,8 @@ public class NewFunctionAVM2Item extends AVM2Item {
         abc.method_info.get(methodIndex).getReturnTypeStr(writer, abc.constants, fullyQualifiedNames);
         writer.startBlock();
         if (body != null) {
-            body.convert(new ConvertData(), path + "/inner", ScriptExportMode.AS, isStatic, methodIndex, scriptIndex, classIndex, abc, null, new ScopeStack(), 0, new NulWriter(), fullyQualifiedNames, null, false);
-            body.toString(path + "/inner", ScriptExportMode.AS, abc, null, writer, fullyQualifiedNames);
+            body.convert(new ConvertData(), path + "/inner", ScriptExportMode.AS, isStatic, methodIndex, scriptIndex, classIndex, abc, null, new ScopeStack(), 0, new NulWriter(), fullyQualifiedNames, null, false, new HashSet<>(localData.seenMethods));
+            body.toString(path + "/inner", ScriptExportMode.AS, abc, null, writer, fullyQualifiedNames, new HashSet<>(localData.seenMethods));
         }
         writer.endBlock();
         writer.endMethod();
@@ -100,4 +110,34 @@ public class NewFunctionAVM2Item extends AVM2Item {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 37 * hash + Objects.hashCode(this.functionName);
+        hash = 37 * hash + this.methodIndex;
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NewFunctionAVM2Item other = (NewFunctionAVM2Item) obj;
+        if (this.methodIndex != other.methodIndex) {
+            return false;
+        }
+        if (!Objects.equals(this.functionName, other.functionName)) {
+            return false;
+        }
+        return true;
+    }
+
 }

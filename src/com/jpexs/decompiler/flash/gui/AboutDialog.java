@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ import java.awt.Color;
 import java.awt.Container;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
@@ -50,9 +51,9 @@ public class AboutDialog extends AppDialog {
 
     private static final String AUTHOR = "JPEXS";
 
-    public AboutDialog() {
+    public AboutDialog(Window owner) {
+        super(owner);
         setDefaultCloseOperation(HIDE_ON_CLOSE);
-        //setSize(new Dimension(300, 320));
         setTitle(translate("dialog.title"));
 
         DEVELOPERS[DEVELOPERS.length - 1] = translate("developers.others"); // translate "others" text
@@ -93,8 +94,9 @@ public class AboutDialog extends AppDialog {
         cp.add(appNamePanel);
         JLabel verLabel = new JLabel(translate("version") + " " + ApplicationInfo.version);
         verLabel.setAlignmentX(0.5f);
-        //verLabel.setPreferredSize(new Dimension(300, 15));
-        verLabel.setFont(new Font("Tahoma", Font.BOLD, 15));
+
+        //Rather not, Tahoma does not supports japanese, etc. characters
+        //verLabel.setFont(new Font("Tahoma", Font.BOLD, 15));
         verLabel.setHorizontalAlignment(SwingConstants.CENTER);
         cp.add(verLabel);
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -123,7 +123,7 @@ public class SearchPanel<E> extends JPanel {
         View.checkAccess();
 
         searchPos.setText((foundPos + 1) + "/" + found.size());
-        listener.updateSearchPos(found.get(foundPos));
+        listener.updateSearchPos(searchFor, searchIgnoreCase, searchRegexp, found.get(foundPos));
     }
 
     private void cancelButtonActionPerformed(ActionEvent evt) {

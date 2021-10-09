@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@ import com.sun.jna.platform.win32.WinDef.DWORD;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.InputStream;
-import java.util.Locale;
 import java.util.Map;
 
 /**

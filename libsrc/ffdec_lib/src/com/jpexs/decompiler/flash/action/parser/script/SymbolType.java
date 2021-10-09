@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -46,22 +46,17 @@ public enum SymbolType {
     WITH,
     DYNAMIC,
     PRIVATE,
-    PROTECTED,
     PUBLIC,
     STATIC,
     CLASS,
-    CONST,
     EXTENDS,
     FUNCTION(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     GET,
     IMPLEMENTS,
     INTERFACE,
-    NAMESPACE,
-    PACKAGE,
     SET,
     VAR,
     IMPORT,
-    USE,
     FALSE(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     NULL(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     THIS(GraphTargetItem.PRECEDENCE_PRIMARY, false),
@@ -103,7 +98,7 @@ public enum SymbolType {
     BITAND(GraphTargetItem.PRECEDENCE_BITWISEAND, true),
     BITOR(GraphTargetItem.PRECEDENCE_BITWISEOR, true),
     XOR(GraphTargetItem.PRECEDENCE_BITWISEXOR, true),
-    MODULO(GraphTargetItem.PRECEDENCE_BITWISESHIFT, true),
+    MODULO(GraphTargetItem.PRECEDENCE_MULTIPLICATIVE, true),
     SHIFT_LEFT(GraphTargetItem.PRECEDENCE_BITWISESHIFT, true),
     SHIFT_RIGHT(GraphTargetItem.PRECEDENCE_BITWISESHIFT, true),
     USHIFT_RIGHT(GraphTargetItem.PRECEDENCE_BITWISESHIFT, true),
@@ -118,11 +113,8 @@ public enum SymbolType {
     ASSIGN_SHIFT_LEFT(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
     ASSIGN_SHIFT_RIGHT(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
     ASSIGN_USHIFT_RIGHT(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    AS(GraphTargetItem.PRECEDENCE_RELATIONAL, true),
     DELETE(GraphTargetItem.PRECEDENCE_UNARY, false),
     INSTANCEOF(GraphTargetItem.PRECEDENCE_RELATIONAL, true),
-    IS(GraphTargetItem.PRECEDENCE_RELATIONAL, true),
-    NAMESPACE_OP(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     NEW(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     TYPEOF(GraphTargetItem.PRECEDENCE_UNARY, false),
     VOID,

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ package com.jpexs.decompiler.flash.gui;
 
 import java.awt.Container;
 import java.awt.FlowLayout;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
@@ -60,7 +61,8 @@ public class ReplaceTraceDialog extends AppDialog {
         return value;
     }
 
-    public ReplaceTraceDialog(String defaultVal) {
+    public ReplaceTraceDialog(Window owner, String defaultVal) {
+        super(owner);
         setTitle(translate("dialog.title"));
         Container cnt = getContentPane();
         cnt.setLayout(new BoxLayout(cnt, BoxLayout.Y_AXIS));

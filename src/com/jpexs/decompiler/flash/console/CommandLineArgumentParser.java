@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -1128,7 +1128,11 @@ public class CommandLineArgumentParser {
         final File swfFile = new File(args.pop());
         processReadSWF(swfFile, null, (SWF swf, OutputStream stdout) -> {
             SwfToSwcExporter exporter = new SwfToSwcExporter();
-            exporter.exportSwf(swf, outFile, false);
+            try {
+                exporter.exportSwf(swf, outFile, false);
+            } catch (IOException | InterruptedException ex) {
+                Logger.getLogger(CommandLineArgumentParser.class.getName()).log(Level.SEVERE, null, ex);
+            }
         });
     }
 
@@ -1160,6 +1164,7 @@ public class CommandLineArgumentParser {
             badArguments("getinstancemetadata");
         }
         processReadSWF(swfFile, stdOutFile, (SWF swf, OutputStream stdout) -> {
+
             LinkReportExporter lre = new LinkReportExporter();
 
             List<ScriptPack> reportPacks;
@@ -1170,9 +1175,12 @@ public class CommandLineArgumentParser {
                 System.exit(1);
                 return;
             }
-
-            String reportStr = lre.generateReport(swf, reportPacks, null);
-            stdout.write(reportStr.getBytes("UTF-8"));
+            try {
+                String reportStr = lre.generateReport(swf, reportPacks, null);
+                stdout.write(reportStr.getBytes("UTF-8"));
+            } catch (InterruptedException ex) {
+                System.err.println("Report generation interrupted");
+            }
         });
     }
 
@@ -1501,7 +1509,7 @@ public class CommandLineArgumentParser {
                             } else {
                                 pt4 = new PlaceObject4Tag(
                                         pt.getSwf(), pt.flagMove(), pt.getDepth(), pt.getClassName(), pt.getCharacterId(), pt.getMatrix(), pt.getColorTransform() == null ? null : new CXFORMWITHALPHA(pt.getColorTransform()), pt.getRatio(),
-                                        pt.getInstanceName(), pt.getClipDepth(), pt.getFilters(), pt.getBlendMode(), pt.getBitmapCache(), pt.getVisible(), pt.getBackgroundColor(), pt.getClipActions(), pt.getAmfData());
+                                        pt.getInstanceName(), pt.getClipDepth(), pt.getFilters(), pt.getBlendMode(), pt.getBitmapCache(), pt.getVisible(), pt.getBackgroundColor(), pt.getClipActions(), pt.getAmfData(), pt.hasImage());
                                 tim.replaceTag(i, pt4);
                             }
 
@@ -2239,7 +2247,7 @@ public class CommandLineArgumentParser {
 
                 if (exportAll || exportFormats.contains("shape")) {
                     System.out.println("Exporting shapes...");
-                    new ShapeExporter().exportShapes(handler, outDir + (multipleExportTypes ? File.separator + ShapeExportSettings.EXPORT_FOLDER_NAME : ""), swf, new ReadOnlyTagList(extags), new ShapeExportSettings(enumFromStr(formats.get("shape"), ShapeExportMode.class), zoom), evl);
+                    new ShapeExporter().exportShapes(handler, outDir + (multipleExportTypes ? File.separator + ShapeExportSettings.EXPORT_FOLDER_NAME : ""), swf, new ReadOnlyTagList(extags), new ShapeExportSettings(enumFromStr(formats.get("shape"), ShapeExportMode.class), zoom), evl, zoom);
                 }
 
                 if (exportAll || exportFormats.contains("morphshape")) {
@@ -2321,7 +2329,7 @@ public class CommandLineArgumentParser {
                     singleScriptFile = false;
                 }
 
-                ScriptExportSettings scriptExportSettings = new ScriptExportSettings(enumFromStr(formats.get("script"), ScriptExportMode.class), singleScriptFile);
+                ScriptExportSettings scriptExportSettings = new ScriptExportSettings(enumFromStr(formats.get("script"), ScriptExportMode.class), singleScriptFile, false);
                 boolean exportAllScript = exportAll || exportFormats.contains("script");
                 boolean exportAs2Script = exportAllScript || exportFormats.contains("script_as2");
                 boolean exportAs3Script = exportAllScript || exportFormats.contains("script_as3");
@@ -3553,7 +3561,7 @@ public class CommandLineArgumentParser {
     private static void replaceAS2(String as, ASMSource src) throws IOException, InterruptedException {
         System.out.println("Replace AS1/2");
         System.out.println("Warning: This feature is EXPERIMENTAL");
-        ActionScript2Parser par = new ActionScript2Parser(src.getSwf().version);
+        ActionScript2Parser par = new ActionScript2Parser(src.getSwf(), src);
         try {
             src.setActions(par.actionsFromString(as));
         } catch (ActionParseException ex) {
@@ -3665,6 +3673,7 @@ public class CommandLineArgumentParser {
         File out;
         PrintWriter pw = new PrintWriter(System.out);
         boolean found = false;
+        boolean detectBundle = true;
         while (!args.isEmpty()) {
             String a = args.pop();
             switch (a) {
@@ -3680,13 +3689,16 @@ public class CommandLineArgumentParser {
                         pw = new PrintWriter(out);
                     }
                     break;
+                case "-nobundle":
+                    detectBundle = false;
+                    break;
                 default:
                     SWFBundle bundle;
                     String sfile = a;
                     File file = new File(sfile);
                     try {
 
-                        SWFSourceInfo sourceInfo = new SWFSourceInfo(null, sfile, sfile);
+                        SWFSourceInfo sourceInfo = new SWFSourceInfo(null, sfile, sfile, detectBundle);
                         bundle = sourceInfo.getBundle(false, SearchMode.ALL);
                         logger.log(Level.INFO, "Load file: {0}", sourceInfo.getFile());
 

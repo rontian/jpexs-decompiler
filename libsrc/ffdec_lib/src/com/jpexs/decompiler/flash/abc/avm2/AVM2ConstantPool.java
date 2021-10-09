@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2;
 
 import com.jpexs.decompiler.flash.abc.ABCVersionRequirements;
@@ -33,10 +34,8 @@ import com.jpexs.helpers.HashArrayList;
 import com.jpexs.helpers.utf8.Utf8PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -558,14 +557,15 @@ public class AVM2ConstantPool implements Cloneable {
      * @param origConst
      * @return
      */
-    public int getMultinameId(Multiname val, AVM2ConstantPool origConst) {
+    public List<Integer> getMultinameIds(Multiname val, AVM2ConstantPool origConst) {
 
+        List<Integer> ret = new ArrayList<>();
         for (int i = 1; i < getMultinameCount(); i++) {
             if (getMultiname(i).qnameEquals(this, val, origConst)) {
-                return i;
+                ret.add(i);
             }
         }
-        return -1;
+        return ret;
     }
 
     public int getStringId(String val, boolean add) {

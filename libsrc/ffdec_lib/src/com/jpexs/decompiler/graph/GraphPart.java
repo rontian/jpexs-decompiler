@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph;
 
 import com.jpexs.decompiler.flash.BaseLocalData;
@@ -73,7 +74,7 @@ public class GraphPart implements Serializable {
 
     public int order;
 
-    public List<GraphPart> throwParts = new ArrayList<>();
+    //public List<GraphPart> throwParts = new ArrayList<>();
 
     public enum StopPartType {
 
@@ -123,17 +124,17 @@ public class GraphPart implements Serializable {
         return time;
     }
 
-    private boolean leadsTo(BaseLocalData localData, Graph gr, GraphSource code, GraphPart part, HashSet<GraphPart> visited, List<Loop> loops) throws InterruptedException {
+    private boolean leadsTo(BaseLocalData localData, Graph gr, GraphSource code, GraphPart prev, GraphPart part, HashSet<GraphPart> visited, List<Loop> loops, List<ThrowState> throwStates, boolean useThrow) throws InterruptedException {
         if (Thread.currentThread().isInterrupted()) {
             throw new InterruptedException();
         }
 
-        GraphPart tpart = gr.checkPart(null, localData, this, null);
+        GraphPart tpart = gr.checkPart(null, localData, prev, this, null);
         if (tpart == null) {
             return false;
         }
         if (tpart != this) {
-            return tpart.leadsTo(localData, gr, code, part, visited, loops);
+            return tpart.leadsTo(localData, gr, code, null, part, visited, loops, throwStates, useThrow);
         }
         Loop currentLoop = null;
         for (Loop l : loops) {
@@ -170,25 +171,30 @@ public class GraphPart implements Serializable {
         for (GraphPart p : nextParts) {
             if (p == part) {
                 return true;
-            } else if (p.leadsTo(localData, gr, code, part, visited, loops)) {
+            } else if (p.leadsTo(localData, gr, code, this, part, visited, loops, throwStates, useThrow)) {
                 return true;
             }
         }
-        for (GraphPart p : throwParts) {
-            if (p == part) {
-                return true;
-            } else if (p.leadsTo(localData, gr, code, part, visited, loops)) {
-                return true;
+        for (ThrowState ts : throwStates) {
+            if (ts.state != 1) {
+                if (ts.throwingParts.contains(this)) {
+                    GraphPart p = ts.targetPart;
+                    if (p == part) {
+                        return true;
+                    } else if (p.leadsTo(localData, gr, code, this, part, visited, loops, throwStates, useThrow)) {
+                        return true;
+                    }
+                }
             }
         }
         return false;
     }
 
-    public boolean leadsTo(BaseLocalData localData, Graph gr, GraphSource code, GraphPart part, List<Loop> loops) throws InterruptedException {
+    public boolean leadsTo(BaseLocalData localData, Graph gr, GraphSource code, GraphPart part, List<Loop> loops, List<ThrowState> throwStates, boolean useThrow) throws InterruptedException {
         for (Loop l : loops) {
             l.leadsToMark = 0;
         }
-        return leadsTo(localData, gr, code, part, new HashSet<>(), loops);
+        return leadsTo(localData, gr, code, null /*???*/, part, new HashSet<>(), loops, throwStates, useThrow);
     }
 
     public GraphPart(int start, int end) {
@@ -261,7 +267,11 @@ public class GraphPart implements Serializable {
         if (end < start) {
             return "<-> " + (start + 1) + "-" + (end + 1);
         }
-        return "" + (start + 1) + "-" + (end + 1) + (instanceCount > 1 ? "(" + instanceCount + " links)" : "");// + "  p" + path;
+        int printStart = start + 1;
+        int printEnd = end + 1;
+
+        return "" + (printStart < 0 ? "(" : "") + printStart + (printStart < 0 ? ")" : "")
+                + "-" + (printEnd < 0 ? "(" : "") + printEnd + (printEnd < 0 ? ")" : "") + (instanceCount > 1 ? "(" + instanceCount + " links)" : "");// + "  p" + path;
     }
 
     public boolean containsIP(int ip) {

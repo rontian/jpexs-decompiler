@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -151,7 +152,8 @@ public class DefineFont2Tag extends FontTag {
                 offsetTable[i] = sis.readUI16("offset");
             }
         }
-        if (numGlyphs > 0) { //codeTableOffset
+
+        if (numGlyphs > 0 || fontFlagsHasLayout) {
             if (fontFlagsWideOffsets) {
                 sis.readUI32("codeTableOffset");
             } else {
@@ -279,26 +281,29 @@ public class DefineFont2Tag extends FontTag {
                 sos.writeUI16((int) (long) offset);
             }
         }
-        if (numGlyphs > 0) {
+
+        if (numGlyphs > 0 || fontFlagsHasLayout) {
             long offset = (glyphShapeTable.size() + 1/*CodeTableOffset*/) * (fontFlagsWideOffsets ? 4 : 2) + baGlyphShapes.length;
             if (fontFlagsWideOffsets) {
                 sos.writeUI32(offset);
             } else {
                 sos.writeUI16((int) offset);
             }
+        }
+        if (numGlyphs > 0) {
             sos.write(baGlyphShapes);
-
-            for (int i = 0; i < numGlyphs; i++) {
-                if (fontFlagsWideCodes) {
-                    sos.writeUI16(codeTable.get(i));
-                } else {
-                    sos.writeUI8(codeTable.get(i));
-                }
+        }
+        for (int i = 0; i < numGlyphs; i++) {
+            if (fontFlagsWideCodes) {
+                sos.writeUI16(codeTable.get(i));
+            } else {
+                sos.writeUI8(codeTable.get(i));
             }
         }
+
         if (fontFlagsHasLayout) {
-            sos.writeSI16(fontAscent);
-            sos.writeSI16(fontDescent);
+            sos.writeUI16(fontAscent);
+            sos.writeUI16(fontDescent);
             sos.writeSI16(fontLeading);
             for (int i = 0; i < numGlyphs; i++) {
                 sos.writeSI16(fontAdvanceTable.get(i));
@@ -482,6 +487,33 @@ public class DefineFont2Tag extends FontTag {
                 fontBoundsTable.set(pos, shp.getBounds());
                 fontAdvanceTable.set(pos, (int) getDivider() * Math.round(FontHelper.getFontAdvance(advanceFont, character)));
             }
+
+            for (int k = 0; k < fontKerningTable.size(); k++) {
+                if (fontKerningTable.get(k).fontKerningCode1 == character
+                        || fontKerningTable.get(k).fontKerningCode2 == character) {
+                    fontKerningTable.remove(k);
+                    k--;
+                }
+            }
+            List<FontHelper.KerningPair> kerning = getFontKerningPairs(font, (int) (getDivider() * 1024));
+            for (FontHelper.KerningPair pair : kerning) {
+                if (pair.char1 != character && pair.char2 != character) {
+                    continue;
+                }
+                int glyph1 = charToGlyph(pair.char1);
+                if (pair.char1 == character) {
+
+                } else if (glyph1 == -1) {
+                    continue;
+                }
+                int glyph2 = charToGlyph(pair.char2);
+                if (pair.char2 == character) {
+
+                } else if (glyph2 == -1) {
+                    continue;
+                }
+                fontKerningTable.add(new KERNINGRECORD(pair.char1, pair.char2, pair.kerning));
+            }
         }
 
         checkWideParameters();
@@ -514,6 +546,14 @@ public class DefineFont2Tag extends FontTag {
         if (fontFlagsHasLayout) {
             fontBoundsTable.remove(pos);
             fontAdvanceTable.remove(pos);
+
+            for (int i = 0; i < fontKerningTable.size(); i++) {
+                if (fontKerningTable.get(i).fontKerningCode1 == character
+                        || fontKerningTable.get(i).fontKerningCode2 == character) {
+                    fontKerningTable.remove(i);
+                    i--;
+                }
+            }
         }
 
         shiftGlyphIndices(fontID, pos + 1, false);
@@ -585,4 +625,67 @@ public class DefineFont2Tag extends FontTag {
         }
         return kerningAdjustment;
     }
+
+    @Override
+    public void setAscent(int ascent) {
+        if (fontFlagsHasLayout) {
+            fontAscent = ascent;
+        }
+    }
+
+    @Override
+    public void setDescent(int descent) {
+        if (fontFlagsHasLayout) {
+            fontDescent = descent;
+        }
+    }
+
+    @Override
+    public void setLeading(int leading) {
+        if (fontFlagsHasLayout) {
+            fontLeading = leading;
+        }
+    }
+
+    @Override
+    public void setHasLayout(boolean hasLayout) {
+        fontFlagsHasLayout = hasLayout;
+        if (hasLayout) {
+            if (fontAdvanceTable == null) {
+                fontAdvanceTable = new ArrayList<>();
+            }
+            if (fontBoundsTable == null) {
+                fontBoundsTable = new ArrayList<>();
+            }
+            if (fontKerningTable == null) {
+                fontKerningTable = new ArrayList<>();
+            }
+        }
+    }
+
+    @Override
+    public void setFontNameIntag(String name) {
+        fontName = name;
+    }
+
+    @Override
+    public boolean isFontNameInTagEditable() {
+        return true;
+    }
+
+    @Override
+    public boolean isAscentEditable() {
+        return hasLayout();
+    }
+
+    @Override
+    public boolean isDescentEditable() {
+        return hasLayout();
+    }
+
+    @Override
+    public boolean isLeadingEditable() {
+        return hasLayout();
+    }
+
 }

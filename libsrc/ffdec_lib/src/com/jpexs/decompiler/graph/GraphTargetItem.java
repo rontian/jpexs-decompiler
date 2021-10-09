@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -40,6 +41,7 @@ import com.jpexs.decompiler.graph.model.FalseItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import com.jpexs.decompiler.graph.model.NotItem;
 import com.jpexs.decompiler.graph.model.TrueItem;
+import com.jpexs.helpers.Reference;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -369,7 +371,16 @@ public abstract class GraphTargetItem implements Serializable, Cloneable {
     }
 
     public boolean hasSideEffect() {
-        return false;
+        Reference<Boolean> ref = new Reference<>(false);
+        visitRecursively(new AbstractGraphTargetVisitor() {
+            @Override
+            public void visit(GraphTargetItem item) {
+                if (item.hasSideEffect()) {
+                    ref.setVal(Boolean.TRUE);
+                }
+            }
+        });
+        return ref.getVal();
     }
 
     public boolean isVariableComputed() {
@@ -393,8 +404,14 @@ public abstract class GraphTargetItem implements Serializable, Cloneable {
     }
 
     public String toStringNoQuotes(LocalData localData) {
-        // todo: honfika: this method should not be called, maybe we should throw an exception
-        return toString();
+        try {
+            HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), false);
+            toStringNoQuotes(writer, localData);
+            return writer.toString();
+        } catch (InterruptedException ex) {
+            //ignore
+        }
+        return "";
     }
 
     public GraphTextWriter toStringNoQuotes(GraphTextWriter writer, LocalData localData) throws InterruptedException {
@@ -421,6 +438,10 @@ public abstract class GraphTargetItem implements Serializable, Cloneable {
     }
 
     public boolean needsNewLine() {
+        return false;
+    }
+
+    public boolean handlesNewLine() {
         return false;
     }
 
@@ -498,16 +519,70 @@ public abstract class GraphTargetItem implements Serializable, Cloneable {
 
     public List<GraphTargetItem> getAllSubItems() {
         List<GraphTargetItem> ret = new ArrayList<>();
-        if (value != null) {
-            ret.add(value);
-        }
+        visit(new AbstractGraphTargetVisitor() {
+            @Override
+            public void visit(GraphTargetItem item) {
+                if (item != null) {
+                    ret.add(item);
+                }
+            }
+        });
         return ret;
+    }
+
+    public Set<GraphTargetItem> getAllSubItemsRecursively() {
+        Set<GraphTargetItem> ret = new HashSet<>();
+        visitRecursively(new AbstractGraphTargetVisitor() {
+            @Override
+            public void visit(GraphTargetItem item) {
+                ret.add(item);
+            }
+        });
+        return ret;
+    }
+
+    public final void visitRecursively(GraphTargetVisitorInterface visitor) {
+        Set<GraphTargetItem> visitedItems = new HashSet<>();
+        visit(new AbstractGraphTargetVisitor() {
+            @Override
+            public void visit(GraphTargetItem item) {
+                if (item != null && !visitedItems.contains(item)) {
+                    visitedItems.add(item);
+                    visitor.visit(item);
+                    item.visit(this);
+                }
+            }
+        });
+    }
+
+    public final void visitRecursivelyNoBlock(GraphTargetVisitorInterface visitor) {
+        Set<GraphTargetItem> visitedItems = new HashSet<>();
+        visitNoBlock(new AbstractGraphTargetVisitor() {
+            @Override
+            public void visit(GraphTargetItem item) {
+                if (item != null && !visitedItems.contains(item)) {
+                    visitedItems.add(item);
+                    visitor.visit(item);
+                    item.visitNoBlock(this);
+                }
+            }
+        });
+    }
+
+    public void visit(GraphTargetVisitorInterface visitor) {
+        if (value != null) {
+            visitor.visit(value);
+        }
+    }
+
+    public void visitNoBlock(GraphTargetVisitorInterface visitor) {
+        visit(visitor);
     }
 
     public abstract GraphTargetItem returnType();
 
     @Override
-    protected GraphTargetItem clone() {
+    public GraphTargetItem clone() {
         try {
             return (GraphTargetItem) super.clone();
         } catch (CloneNotSupportedException ex) {
@@ -519,13 +594,15 @@ public abstract class GraphTargetItem implements Serializable, Cloneable {
         return new NotItem(src, getLineStartItem(), this);
     }
 
-    public GraphTextWriter appendBlock(GraphTargetItem prevLineItem, GraphTextWriter writer, LocalData localData, List<GraphTargetItem> commands) throws InterruptedException {
+    public GraphTextWriter appendCommands(GraphTargetItem prevLineItem, GraphTextWriter writer, LocalData localData, List<GraphTargetItem> commands, boolean asBlock) throws InterruptedException {
 
         //This may be useful in the future, but we must handle obfuscated SWFs where there is only one debugline instruction on the beggining.
         final boolean useLineInfo = false;
 
         int prevLine = prevLineItem == null ? 0 : prevLineItem.getLine();
-        writer.startBlock();
+        if (asBlock) {
+            writer.startBlock();
+        }
         boolean first = true;
         for (GraphTargetItem ti : commands) {
             if (!ti.isEmpty()) {
@@ -538,10 +615,18 @@ public abstract class GraphTargetItem implements Serializable, Cloneable {
                 ti.toStringSemicoloned(writer, localData);
             }
         }
-        if (!first) {
-            writer.newLine();
+        if (asBlock) {
+            if (!first) {
+                writer.newLine();
+            }
+
+            writer.endBlock();
         }
-        writer.endBlock();
+        return writer;
+    }
+
+    public GraphTextWriter appendBlock(GraphTargetItem prevLineItem, GraphTextWriter writer, LocalData localData, List<GraphTargetItem> commands) throws InterruptedException {
+        appendCommands(prevLineItem, writer, localData, commands, true);
         return writer;
     }
 
@@ -552,5 +637,37 @@ public abstract class GraphTargetItem implements Serializable, Cloneable {
         }
 
         return 0;
+    }
+
+    public boolean isIdentical(GraphTargetItem other) {
+        return this == other;
+    }
+
+    public static boolean objectsValueEquals(Object o1, Object o2) {
+        if (o1 == null && o2 == null) {
+            return true;
+        }
+        if (o1 == null || o2 == null) {
+            return false;
+        }
+        if ((o1 instanceof GraphTargetItem) && (o2 instanceof GraphTargetItem)) {
+            GraphTargetItem gt1 = (GraphTargetItem) o1;
+            GraphTargetItem gt2 = (GraphTargetItem) o2;
+            return gt1.valueEquals(gt2);
+        }
+        if ((o1 instanceof List) && (o2 instanceof List)) {
+            List l1 = (List) o1;
+            List l2 = (List) o2;
+
+            if (l1.size() != l2.size()) {
+                return false;
+            }
+            for (int i = 0; i < l1.size(); i++) {
+                if (!objectsValueEquals(l1.get(i), l2.get(i))) {
+                    return false;
+                }
+            }
+        }
+        return o1.equals(o2);
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -201,7 +201,12 @@ public class HighlightedTextWriter extends GraphTextWriter {
                 HighlightData ndata = new HighlightData();
                 ndata.merge(itemPos.data);
                 ndata.merge(data);
-                ndata.offset = src.getAddress() + pos;
+                long virtualAddress = src.getVirtualAddress();
+                if (virtualAddress != -1) {
+                    ndata.offset = virtualAddress + pos;
+                } else {
+                    ndata.offset = src.getAddress() + pos;
+                }
                 ndata.fileOffset = src.getFileOffset();
                 if (itemPos.startLineItem != null) {
                     ndata.firstLineOffset = itemPos.startLineItem.getLineOffset();

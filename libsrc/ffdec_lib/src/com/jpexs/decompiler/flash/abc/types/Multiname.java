@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,12 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.types;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
+import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.types.annotations.Internal;
 import com.jpexs.decompiler.graph.DottedChain;
@@ -55,7 +57,7 @@ public class Multiname {
 
     private static final int[] multinameKinds = new int[]{QNAME, QNAMEA, MULTINAME, MULTINAMEA, RTQNAME, RTQNAMEA, MULTINAMEL, RTQNAMEL, RTQNAMELA, MULTINAMELA, TYPENAME};
 
-    private static final String[] multinameKindNames = new String[]{"Qname", "QnameA", "Multiname", "MultinameA", "RTQname", "RTQnameA", "MultinameL", "RTQnameL", "RTQnameLA", "MultinameLA", "TypeName"};
+    private static final String[] multinameKindNames = new String[]{"QName", "QNameA", "Multiname", "MultinameA", "RTQName", "RTQNameA", "MultinameL", "RTQNameL", "RTQNameLA", "MultinameLA", "TypeName"};
 
     public int kind;
 
@@ -63,11 +65,11 @@ public class Multiname {
 
     public int namespace_index;
 
-    public final int namespace_set_index;
+    public /*final JAVA 9*/ int namespace_set_index;
 
-    public final int qname_index; //for TypeName
+    public /*final JAVA 9*/ int qname_index; //for TypeName
 
-    public final int[] params; //for TypeName
+    public /*final JAVA 9*/ int[] params; //for TypeName
 
     @Internal
     public boolean deleted;
@@ -349,6 +351,40 @@ public class Multiname {
         return typeNameStr.toString();
     }
 
+    public String getNameWithCustomNamespace(ABC abc, List<DottedChain> fullyQualifiedNames, boolean dontDeobfuscate, boolean withSuffix) {
+        if (kind == TYPENAME) {
+            return typeNameToStr(abc.constants, fullyQualifiedNames, dontDeobfuscate, withSuffix);
+        }
+        if (name_index == -1) {
+            return "";
+        }
+        if (name_index == 0) {
+            return isAttribute() ? "@*" : "*";
+        } else {
+            String name = abc.constants.getString(name_index);
+
+            if (namespace_index > 0 && getNamespace(abc.constants).kind == Namespace.KIND_NAMESPACE) {
+                DottedChain dc = abc.findCustomNs(namespace_index);
+                String nsname = dc != null ? dc.getLast() : null;
+
+                if (nsname != null) {
+                    String identifier = dontDeobfuscate ? nsname : IdentifiersDeobfuscation.printIdentifier(true, nsname);
+                    if (identifier != null && !identifier.isEmpty()) {
+                        return nsname + "::" + name;
+                    }
+                } else {
+                    //???
+                }
+            }
+
+            if (fullyQualifiedNames != null && fullyQualifiedNames.contains(DottedChain.parseWithSuffix(name))) {
+                DottedChain dc = getNameWithNamespace(abc.constants, withSuffix);
+                return dontDeobfuscate ? dc.toRawString() : dc.toPrintableString(true);
+            }
+            return (isAttribute() ? "@" : "") + (dontDeobfuscate ? name : IdentifiersDeobfuscation.printIdentifier(true, name)) + (withSuffix ? getNamespaceSuffix() : "");
+        }
+    }
+
     public String getName(AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames, boolean dontDeobfuscate, boolean withSuffix) {
         if (kind == TYPENAME) {
             return typeNameToStr(constants, fullyQualifiedNames, dontDeobfuscate, withSuffix);
@@ -378,7 +414,7 @@ public class Multiname {
                 }
             }
         }
-        String name = getName(constants, null, false, false);
+        String name = getName(constants, null, true, false);
         if (ns != null) {
             return ns.getName(constants).add(name, withSuffix ? getNamespaceSuffix() : "");
         }
@@ -496,13 +532,19 @@ public class Multiname {
         }
         Namespace otherNs = other.getSingleNamespace(otherCpool);
         Namespace thisNs = getSingleNamespace(thisCpool);
-        if (otherNs.kind != thisNs.kind) {
-            return false;
+        if (thisNs != null && otherNs != null) {
+            if (otherNs.kind != thisNs.kind) {
+                return false;
+            }
+            if (otherNs.kind == Namespace.KIND_PRIVATE) {
+                return false;
+            }
+            if (!Objects.equals(otherNs.getName(otherCpool).toRawString(), thisNs.getName(thisCpool).toRawString())) {
+                return false;
+            }
         }
-        if (otherNs.kind == Namespace.KIND_PRIVATE) {
-            return false;
-        }
-        if (!Objects.equals(otherNs.getName(otherCpool).toRawString(), thisNs.getName(thisCpool).toRawString())) {
+
+        if ((thisNs == null && otherNs != null) || (otherNs == null && thisNs != null)) {
             return false;
         }
 

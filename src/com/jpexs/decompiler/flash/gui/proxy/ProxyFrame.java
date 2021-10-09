@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,10 +21,12 @@ import com.jpexs.decompiler.flash.RunnableIOEx;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppFrame;
 import com.jpexs.decompiler.flash.gui.AppStrings;
+import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.GuiAbortRetryIgnoreHandler;
 import com.jpexs.decompiler.flash.gui.Main;
 import com.jpexs.decompiler.flash.gui.MainFrame;
 import com.jpexs.decompiler.flash.gui.View;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.helpers.SWFDecompilerPlugin;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.utf8.Utf8InputStreamReader;
@@ -74,7 +76,6 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
@@ -263,7 +264,7 @@ public class ProxyFrame extends AppFrame implements CatchedListener, MouseListen
         switchButton.addActionListener(this::switchStateButtonActionPerformed);
         Container cnt = getContentPane();
         cnt.setLayout(new BorderLayout());
-        cnt.add(new JScrollPane(replacementsTable), BorderLayout.CENTER);
+        cnt.add(new FasterScrollPane(replacementsTable), BorderLayout.CENTER);
 
         portField.setPreferredSize(new Dimension(80, portField.getPreferredSize().height));
         JPanel buttonsPanel = new JPanel();
@@ -413,14 +414,12 @@ public class ProxyFrame extends AppFrame implements CatchedListener, MouseListen
             };
             fc.setFileFilter(swfFilter);
             fc.setAcceptAllFileFilterUsed(true);
-            JFrame f = new JFrame();
-            View.setWindowIcon(f);
-            if (fc.showSaveDialog(f) == JFileChooser.APPROVE_OPTION) {
+            if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
                 File file = Helper.fixDialogFile(fc.getSelectedFile());
                 try {
                     Files.copy(new File(r.targetFile).toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException ex) {
-                    View.showMessageDialog(this, translate("error.save.as") + "\r\n" + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                    ViewMessages.showMessageDialog(this, translate("error.save.as") + "\r\n" + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         } else {
@@ -484,15 +483,13 @@ public class ProxyFrame extends AppFrame implements CatchedListener, MouseListen
             };
             fc.setFileFilter(swfFilter);
             fc.setAcceptAllFileFilterUsed(true);
-            JFrame f = new JFrame();
-            View.setWindowIcon(f);
-            if (fc.showOpenDialog(f) == JFileChooser.APPROVE_OPTION) {
+            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
                 File file = Helper.fixDialogFile(fc.getSelectedFile());
                 try {
                     Files.copy(file.toPath(), new File(r.targetFile).toPath(), StandardCopyOption.REPLACE_EXISTING);
                     tableModel.fireTableCellUpdated(sel[0], 1/*size*/);
                 } catch (IOException ex) {
-                    View.showMessageDialog(f, translate("error.replace") + "\r\n" + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                    ViewMessages.showMessageDialog(this, translate("error.replace") + "\r\n" + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         }
@@ -520,7 +517,7 @@ public class ProxyFrame extends AppFrame implements CatchedListener, MouseListen
         int[] sel = getSelectedRows();
         if (sel.length > 0) {
             Replacement r = replacements.get(sel[0]);
-            String s = View.showInputDialog("URL", r.urlPattern);
+            String s = ViewMessages.showInputDialog(this, "URL", r.urlPattern);
             if (s != null) {
                 r.urlPattern = s;
                 tableModel.setValueAt(s, sel[0], 2/*url*/);
@@ -575,7 +572,7 @@ public class ProxyFrame extends AppFrame implements CatchedListener, MouseListen
             } catch (NumberFormatException nfe) {
             }
             if ((port <= 0) || (port > 65535)) {
-                View.showMessageDialog(this, translate("error.port"), translate("error"), JOptionPane.ERROR_MESSAGE);
+                ViewMessages.showMessageDialog(this, translate("error.port"), translate("error"), JOptionPane.ERROR_MESSAGE);
                 started = false;
                 return;
             }

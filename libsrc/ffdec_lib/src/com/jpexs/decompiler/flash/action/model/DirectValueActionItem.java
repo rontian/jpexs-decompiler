@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -182,8 +183,7 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
 
             return writer.appendWithData(((RegisterNumber) value).translate(), srcData);
         }
-        //return writer.append(value.toString());
-        return writer.append(EcmaScript.toString(value, true)); // todo, use this line
+        return writer.append(EcmaScript.toString(value));
     }
 
     @Override
@@ -239,6 +239,7 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
         if (!Objects.equals(this.constants, other.constants)) {
             return false;
         }
+        //!!!
         if (other.pos != this.pos) {
             return false;
         }

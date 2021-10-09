@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,14 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.FontExporter;
+import com.jpexs.decompiler.flash.exporters.GraphicsTextDrawable;
 import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.SVGExporter;
@@ -267,7 +269,7 @@ public abstract class TextTag extends DrawableTag {
                 }
                 textHeight = rec.textHeight;
                 if (font == null) {
-                    Logger.getLogger(TextTag.class.getName()).log(Level.SEVERE, "Font with id=" + rec.fontId + " was not found.");
+                    Logger.getLogger(TextTag.class.getName()).log(Level.SEVERE, "Font with id={0} was not found.", rec.fontId);
                     continue;
                 }
 
@@ -420,7 +422,7 @@ public abstract class TextTag extends DrawableTag {
         Graphics2D g = (Graphics2D) image.getGraphics();
         Matrix mat = transformation.clone();
         mat = mat.concatenate(new Matrix(textMatrix));
-        BitmapExporter.export(swf, getBorderShape(borderColor, fillColor, rect), null, image, mat, mat, colorTransform);
+        BitmapExporter.export(swf, getBorderShape(borderColor, fillColor, rect), null, image, mat, mat, colorTransform, true);
     }
 
     public static void drawBorderHtmlCanvas(SWF swf, StringBuilder result, RGB borderColor, RGB fillColor, RECT rect, MATRIX textMatrix, ColorTransform colorTransform, double unitDivisor) {
@@ -443,6 +445,11 @@ public abstract class TextTag extends DrawableTag {
     }
 
     public static void staticTextToImage(SWF swf, List<TEXTRECORD> textRecords, int numText, SerializableImage image, MATRIX textMatrix, Matrix transformation, ColorTransform colorTransform) {
+        if (image.getGraphics() instanceof GraphicsTextDrawable) {
+            //custom drawing
+            ((GraphicsTextDrawable) image.getGraphics()).drawTextRecords(swf, textRecords, numText, textMatrix, transformation, colorTransform);
+            return;
+        }
         int textColor = 0;
         FontTag font = null;
         int textHeight = 12;
@@ -505,7 +512,7 @@ public abstract class TextTag extends DrawableTag {
                 }
 
                 if (shape != null) {
-                    BitmapExporter.export(swf, shape, textColor2, image, mat, mat, colorTransform);
+                    BitmapExporter.export(swf, shape, textColor2, image, mat, mat, colorTransform, true);
                     if (SHAPERECORD.DRAW_BOUNDING_BOX) {
                         RGB borderColor = new RGBA(Color.black);
                         RGB fillColor = new RGBA(new Color(255, 255, 255, 0));
@@ -759,7 +766,7 @@ public abstract class TextTag extends DrawableTag {
                         }
 
                         if (!"".equals(charId)) {
-                            Element charImage = exporter.addUse(mat, bounds, charId, null);
+                            Element charImage = exporter.addUse(mat, bounds, charId, null, null);
                             RGBA colorA = new RGBA(textColor);
                             charImage.setAttribute("fill", colorA.toHexRGB());
                             if (colorA.alpha != 255) {

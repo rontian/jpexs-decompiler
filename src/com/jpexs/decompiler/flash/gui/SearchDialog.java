@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@ import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -59,9 +60,25 @@ public class SearchDialog extends AppDialog {
 
     public JRadioButton searchInTextsRadioButton = new JRadioButton(translate("checkbox.searchText"));
 
+    private JComboBox<String> scopeComboBox;
+
     private int result = ERROR_OPTION;
 
-    public SearchDialog(Window owner, boolean replace) {
+    public static final int SCOPE_SELECTION = 0;
+    public static final int SCOPE_CURRENT_FILE = 1;
+    public static final int SCOPE_ALL_FILES = 2;
+
+    public int getCurrentScope() {
+        int index = scopeComboBox.getSelectedIndex();
+
+        if (scopeComboBox.getModel().getSize() == 3) {
+            return index;
+        } else {
+            return 1 + index;
+        }
+    }
+
+    public SearchDialog(Window owner, boolean replace, String selection, boolean selectionFirst) {
         super(owner);
         setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
         ignoreCaseCheckBox.setSelected(true);
@@ -89,6 +106,30 @@ public class SearchDialog extends AppDialog {
             cnt.add(panField);
         }
 
+        panField = new JPanel(new FlowLayout());
+        List<String> scopeItems = new ArrayList<>();
+        if (selection != null) {
+            scopeItems.add(translate("scope.selection").replace("%selection%", selection));
+        }
+        scopeItems.add(translate("scope.currentFile"));
+        scopeItems.add(translate("scope.allFiles"));
+        panField.add(new JLabel(translate("label.scope")));
+        scopeComboBox = new JComboBox<>(scopeItems.toArray(new String[scopeItems.size()]));
+        panField.add(scopeComboBox);
+
+        if (selection != null && !selectionFirst) {
+            scopeComboBox.setSelectedIndex(1);
+        }
+
+        if (replace) {
+            if (selection != null) {
+                scopeComboBox.setSelectedIndex(1);
+            }
+            scopeComboBox.setEnabled(false);
+        }
+
+        cnt.add(panField);
+
         JPanel checkPanel = new JPanel(new FlowLayout());
         checkPanel.add(ignoreCaseCheckBox);
         checkPanel.add(regexpCheckBox);
@@ -112,6 +153,10 @@ public class SearchDialog extends AppDialog {
             rbPanel.add(searchInPCodeRadioButton);
             rbPanel.add(searchInTextsRadioButton);
             cnt.add(rbPanel);
+
+            searchInASRadioButton.addActionListener(this::searchTypeActionPerformed);
+            searchInPCodeRadioButton.addActionListener(this::searchTypeActionPerformed);
+            searchInTextsRadioButton.addActionListener(this::searchTypeActionPerformed);
         }
 
         cnt.add(panButtons);
@@ -125,6 +170,19 @@ public class SearchDialog extends AppDialog {
         images.add(View.loadImage(replace ? "replace16" : "search16"));
         images.add(View.loadImage(replace ? "replace32" : "search32"));
         setIconImages(images);
+    }
+
+    private void searchTypeActionPerformed(ActionEvent e) {
+        if (searchInTextsRadioButton.isSelected()) {
+            if (scopeComboBox.getModel().getSize() == 3) {
+                scopeComboBox.setSelectedIndex(1);
+            } else {
+                scopeComboBox.setSelectedIndex(0);
+            }
+            scopeComboBox.setEnabled(false);
+        } else {
+            scopeComboBox.setEnabled(true);
+        }
     }
 
     @Override
@@ -143,7 +201,7 @@ public class SearchDialog extends AppDialog {
             try {
                 Pattern pat = Pattern.compile(searchField.getText());
             } catch (PatternSyntaxException ex) {
-                View.showMessageDialog(null, translate("error.invalidregexp"), translate("error"), JOptionPane.ERROR_MESSAGE);
+                ViewMessages.showMessageDialog(this, translate("error.invalidregexp"), translate("error"), JOptionPane.ERROR_MESSAGE);
                 return;
             }
         }

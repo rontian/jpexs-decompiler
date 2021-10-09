@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2021 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -240,7 +240,7 @@ public class DebuggerTools {
     public static void debuggerShowLog() {
         initDebugger();
         if (Main.debugDialog == null) {
-            Main.debugDialog = new DebugLogDialog(debugger);
+            Main.debugDialog = new DebugLogDialog(Main.getDefaultDialogsOwner(), debugger);
         }
         Main.debugDialog.setVisible(true);
     }

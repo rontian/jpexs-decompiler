@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -34,6 +34,7 @@ import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
 import java.util.HashMap;
 import java.util.List;
 
@@ -111,7 +112,27 @@ public class ActionSetMember extends Action {
                 }
             }
         }
-        GraphTargetItem ret = new SetMemberActionItem(this, lineStartAction, object, memberName, value);
+
+        SetMemberActionItem setMem = new SetMemberActionItem(this, lineStartAction, object, memberName, value);
+
+        GraphTargetItem inside = value.getNotCoercedNoDup();
+        if (inside instanceof StoreRegisterActionItem) {
+            inside = inside.value;
+        }
+        if (inside instanceof CompoundableBinaryOp) {
+            if (!object.hasSideEffect() && !memberName.hasSideEffect()) {
+                CompoundableBinaryOp binaryOp = (CompoundableBinaryOp) inside;
+                if (binaryOp.getLeftSide() instanceof GetMemberActionItem) {
+                    GetMemberActionItem getMember = (GetMemberActionItem) binaryOp.getLeftSide();
+                    if (GraphTargetItem.objectsValueEquals(object, getMember.object.getThroughDuplicate()) && GraphTargetItem.objectsValueEquals(memberName, getMember.memberName)) {
+                        setMem.setCompoundValue(binaryOp.getRightSide());
+                        setMem.setCompoundOperator(binaryOp.getOperator());
+                    }
+                }
+            }
+        }
+
+        GraphTargetItem ret = setMem;
         if (value instanceof StoreRegisterActionItem) {
             StoreRegisterActionItem sr = (StoreRegisterActionItem) value;
             if (sr.define) {

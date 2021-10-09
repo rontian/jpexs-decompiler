@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -33,9 +33,12 @@ public class ScriptExportSettings {
 
     public FileTextWriter singleFileWriter;
 
-    public ScriptExportSettings(ScriptExportMode mode, boolean singleFile) {
+    public boolean ignoreFrameScripts;
+
+    public ScriptExportSettings(ScriptExportMode mode, boolean singleFile, boolean ignoreFrameScripts) {
         this.mode = mode;
         this.singleFile = singleFile;
+        this.ignoreFrameScripts = ignoreFrameScripts;
     }
 
     public String getFileExtension() {
